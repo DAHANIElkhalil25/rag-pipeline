@@ -1,0 +1,16 @@
+# === Dépendances de base (étapes 1-2) ===
+gitpython>=3.1.40
+pandas>=2.0.0
+tqdm>=4.65.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+ftfy>=6.1.0
+
+# === Dépendances ML (étapes 3-4) ===
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.4
+tiktoken>=0.5.0
+numpy>=1.24.0
+
+# === Tests ===
+pytest>=7.0.0
