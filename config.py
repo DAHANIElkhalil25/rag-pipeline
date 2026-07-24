@@ -48,6 +48,37 @@ BENCHMARK_DIR = DATA_DIR / "benchmarks"
 # Métadonnées
 METADATA_DIR = DATA_DIR / "metadata"
 
+# Évaluation (sortie étape 6)
+EVALUATION_DIR = DATA_DIR / "evaluation"
+
+# ============================================================
+# CONFIGURATION DU LLM (ÉTAPE 5)
+# ============================================================
+LLM_CONFIG = {
+    # ── Modèle de génération ──
+    # Mistral 7B Instruct : meilleur ratio performance/taille
+    # Réf. Jiang et al. (2023) : surpasse LLaMA 2 13B
+    "model_name": "mistralai/Mistral-7B-Instruct-v0.3",
+
+    # ── Quantification ──
+    # 4-bit (NF4) via bitsandbytes : réduit VRAM de 14GB → ~5GB
+    # Compatible avec Kaggle T4 (16GB VRAM)
+    "quantization": "4bit",
+
+    # ── Paramètres de génération ──
+    "max_new_tokens": 512,
+    "temperature": 0.1,      # Basse pour des réponses factuelles
+    "top_p": 0.9,
+    "repetition_penalty": 1.1,
+
+    # ── Retrieval ──
+    "top_k_retrieval": 5,    # Nombre de passages à retrouver
+
+    # ── Ollama fallback (si pas de GPU) ──
+    "ollama_url": "http://localhost:11434",
+    "ollama_model": "mistral",
+}
+
 # ============================================================
 # CONFIGURATION DES SOURCES
 # ============================================================
@@ -105,6 +136,7 @@ def init_directories():
         VECTORSTORE_DIR,
         BENCHMARK_DIR,
         METADATA_DIR,
+        EVALUATION_DIR,
     ]
     for d in dirs:
         d.mkdir(parents=True, exist_ok=True)

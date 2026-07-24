@@ -1,0 +1,792 @@
+% ============================================================
+% Rapport de stage — Système RAG pour la documentation technique
+% INSEA Rabat — Data Science
+% ============================================================
+\documentclass[12pt,a4paper,oneside]{report}
+
+% --- Encodage et langue ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[round, sort&compress]{natbib}
+\usepackage[french]{babel}
+
+% --- Mise en page ---
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm, headheight=14.5pt]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{parskip}
+
+% --- Polices ---
+\usepackage{lmodern}
+
+% --- Mathématiques ---
+\usepackage{amsmath, amssymb, amsfonts}
+
+% --- Figures et tableaux ---
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+
+% --- Couleurs et liens ---
+\usepackage[dvipsnames]{xcolor}
+\usepackage[hidelinks]{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=MidnightBlue,
+  citecolor=OliveGreen,
+  urlcolor=BrickRed
+}
+
+% --- Code source ---
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{gray!10},
+  frame=single,
+  breaklines=true,
+  captionpos=b,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{red!70!black},
+  showstringspaces=false
+}
+
+% --- Algorithmes ---
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\renewcommand{\algorithmicrequire}{\textbf{Entrée :}}
+\renewcommand{\algorithmicensure}{\textbf{Sortie :}}
+
+% --- Diagrammes ---
+\usepackage{tikz}
+\usetikzlibrary{shapes, arrows, positioning, calc, fit}
+
+% --- Bibliographie (chargé avant babel) ---
+
+% --- Divers ---
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{appendix}
+\usepackage{fancyhdr}
+
+% --- En-têtes et pieds de page ---
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% --- Commandes personnalisées ---
+\newcommand{\rag}{\textsc{rag}}
+\newcommand{\nlp}{\textsc{nlp}}
+\newcommand{\llm}{\textsc{llm}}
+\newcommand{\bm}[1]{\textsc{bm}#1}
+
+% ============================================================
+\begin{document}
+
+% ============================================================
+% PAGE DE TITRE
+% ============================================================
+\begin{titlepage}
+\centering
+\vspace*{1cm}
+
+{\large \textbf{Institut National de Statistique et d'Économie Appliquée}}\\[0.3cm]
+{\large INSEA --- Rabat}\\[1.5cm]
+
+{\Large \textbf{Rapport de Stage de Fin d'Études}}\\[0.3cm]
+{\large Filière : Data Science}\\[2cm]
+
+\rule{\textwidth}{1.5pt}\\[0.5cm]
+{\LARGE \textbf{Conception et implémentation d'un système de \\ Retrieval-Augmented Generation (RAG) pour le \\ question-answering sur la documentation technique}}\\[0.5cm]
+\rule{\textwidth}{1.5pt}\\[2cm]
+
+{\large
+\begin{tabular}{rl}
+\textbf{Réalisé par :}   & Elkhalil \\[0.3cm]
+\textbf{Encadrant entreprise :} & \textit{[À compléter]} \\[0.3cm]
+\textbf{Encadrant académique :} & \textit{[À compléter]} \\[0.3cm]
+\textbf{Organisme d'accueil :}  & 3D Smart Factory \\[0.3cm]
+\end{tabular}
+}
+
+\vfill
+{\large Année universitaire 2024--2025}
+
+\end{titlepage}
+
+% ============================================================
+% TABLE DES MATIÈRES
+% ============================================================
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+\listoffigures
+\newpage
+\listoftables
+\newpage
+
+% ============================================================
+% LISTE DES ABRÉVIATIONS
+% ============================================================
+\chapter*{Liste des abréviations}
+\addcontentsline{toc}{chapter}{Liste des abréviations}
+
+\begin{tabular}{ll}
+\toprule
+\textbf{Abréviation} & \textbf{Signification} \\
+\midrule
+\nlp{}   & Natural Language Processing (Traitement Automatique du Langage Naturel) \\
+\rag{}   & Retrieval-Augmented Generation \\
+\llm{}   & Large Language Model (Grand Modèle de Langue) \\
+BM25     & Best Matching 25 \\
+TF-IDF   & Term Frequency -- Inverse Document Frequency \\
+BERT     & Bidirectional Encoder Representations from Transformers \\
+GPT      & Generative Pre-trained Transformer \\
+API      & Application Programming Interface \\
+MRR      & Mean Reciprocal Rank \\
+BLEU     & Bilingual Evaluation Understudy \\
+ROUGE    & Recall-Oriented Understudy for Gisting Evaluation \\
+\bottomrule
+\end{tabular}
+
+\newpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+% ============================================================
+% INTRODUCTION GÉNÉRALE
+% ============================================================
+\chapter{Introduction générale}
+
+L'essor des technologies numériques a engendré une croissance exponentielle du volume de documentation technique produite dans le domaine du développement logiciel. Les bibliothèques, \textit{frameworks} et langages de programmation évoluent à un rythme soutenu, accompagnés d'une documentation qui se complexifie et se fragmente à travers de multiples sources~: guides officiels, références d'API, tutoriels, notes de version et forums communautaires \citep{gao2024}.
+
+Face à cette prolifération documentaire, les développeurs consacrent une part significative de leur temps à la recherche d'informations. Les moteurs de recherche traditionnels, fondés sur la correspondance lexicale, montrent leurs limites lorsqu'il s'agit de comprendre l'intention sous-jacente d'une question technique formulée en langage naturel et de fournir une réponse synthétique, contextualisée et directement exploitable \citep{barnett2024}.
+
+Les grands modèles de langue (\llm{}), tels que GPT-4 \citep{openai2023gpt4} et LLaMA \citep{touvron2023llama}, ont démontré des capacités remarquables en génération de texte et en compréhension du langage naturel. Cependant, ces modèles souffrent de limitations intrinsèques~: leurs connaissances sont figées à la date de leur entraînement, ils peuvent produire des informations factuellement incorrectes --- phénomène connu sous le nom d'\textit{hallucination} --- et ils ne disposent pas d'un accès direct aux corpus documentaires spécifiques d'un domaine ou d'une organisation \citep{lewis2020}.
+
+L'architecture \textit{Retrieval-Augmented Generation} (\rag{}), introduite par \citet{lewis2020}, constitue une réponse à ces limitations. En couplant un mécanisme de recherche d'information à un modèle génératif, le \rag{} permet de conditionner la génération sur des passages pertinents extraits d'une base de connaissances, réduisant ainsi le risque d'hallucination tout en garantissant l'ancrage factuel des réponses produites \citep{gao2024}.
+
+Le présent travail, réalisé dans le cadre d'un stage de fin d'études au sein de l'entreprise \textbf{3D Smart Factory}, s'inscrit dans cette perspective. Il vise à concevoir, implémenter et évaluer un système \rag{} dédié au \textit{question-answering} sur la documentation technique de trois bibliothèques et langages majeurs de l'écosystème Python~: \textbf{Python 3.13}, \textbf{Scikit-learn 1.5} et \textbf{LangChain}.
+
+\section{Problématique}
+
+La problématique centrale de ce travail peut être formulée comme suit~:
+
+\begin{quote}
+\textit{Comment concevoir un système de Retrieval-Augmented Generation capable de répondre de manière précise, pertinente et fidèle à des questions techniques formulées en langage naturel, en s'appuyant sur la documentation officielle de bibliothèques logicielles~?}
+\end{quote}
+
+Cette problématique soulève plusieurs sous-questions~:
+\begin{itemize}[nosep]
+  \item Comment collecter, nettoyer et structurer un corpus de documentation technique hétérogène~?
+  \item Quelle stratégie de découpage (\textit{chunking}) et de vectorisation (\textit{embedding}) permet d'obtenir la représentation sémantique la plus fidèle du contenu documentaire~?
+  \item Quelle stratégie de recherche --- sémantique, lexicale ou hybride --- maximise la pertinence des passages retrouvés~?
+  \item Comment intégrer un \llm{} dans le pipeline pour générer des réponses contextualisées à partir des passages retrouvés~?
+  \item Quelles métriques et quel protocole expérimental permettent d'évaluer rigoureusement les performances du système~?
+\end{itemize}
+
+\section{Objectifs}
+
+Les objectifs de ce travail sont les suivants~:
+
+\begin{enumerate}[nosep]
+  \item Collecter et préparer un corpus documentaire à partir de la documentation officielle de Python 3.13, Scikit-learn 1.5 et LangChain.
+  \item Concevoir un pipeline de traitement documentaire incluant le nettoyage, le découpage et la vectorisation des documents.
+  \item Réaliser une étude comparative (\textit{benchmarking}) systématique des configurations de \textit{chunking}, des modèles d'\textit{embedding} et des stratégies de recherche afin d'identifier la combinaison optimale.
+  \item Implémenter un système \rag{} complet intégrant les composants d'indexation, de recherche et de génération.
+  \item Évaluer les performances du système à l'aide de métriques quantitatives reconnues dans la littérature.
+\end{enumerate}
+
+\section{Organisation du document}
+
+Le présent document est organisé comme suit. Le chapitre~\ref{chap:contexte} présente le contexte scientifique et l'état de l'art relatifs au traitement automatique du langage naturel et aux systèmes de question-answering. Le chapitre~\ref{chap:fondements} expose les fondements théoriques nécessaires à la compréhension de l'architecture \rag{}, notamment les mécanismes d'attention, les modèles Transformer, les représentations vectorielles et les stratégies de recherche d'information. Le chapitre~\ref{chap:methodologie} détaille la méthodologie adoptée, incluant l'architecture du pipeline, le protocole de benchmarking et les choix techniques effectués. Le chapitre~\ref{chap:outils} présente les outils et technologies mobilisés. Le chapitre~\ref{chap:protocole} décrit le protocole expérimental. Enfin, le chapitre~\ref{chap:conclusion} conclut ce travail et ouvre des perspectives de recherche.
+
+
+% ============================================================
+% CHAPITRE 2 : CONTEXTE SCIENTIFIQUE ET ÉTAT DE L'ART
+% ============================================================
+\chapter{Contexte scientifique et état de l'art}
+\label{chap:contexte}
+
+Ce chapitre situe le présent travail dans son contexte scientifique. Il introduit les domaines de recherche concernés, retrace l'évolution des approches de question-answering et présente l'état de l'art des systèmes de \textit{Retrieval-Augmented Generation}.
+
+\section{Le traitement automatique du langage naturel}
+
+Le traitement automatique du langage naturel (\nlp{}, \textit{Natural Language Processing}) est une branche de l'intelligence artificielle qui vise à doter les machines de la capacité de comprendre, d'interpréter et de générer le langage humain \citep{jurafsky2024}. Ce domaine interdisciplinaire se situe au carrefour de la linguistique computationnelle, de l'informatique et de l'apprentissage automatique.
+
+Le \nlp{} englobe un ensemble de tâches fondamentales, parmi lesquelles la tokenisation, l'analyse morphosyntaxique, la reconnaissance d'entités nommées, l'analyse de sentiments, la traduction automatique, le résumé automatique et le question-answering \citep{jurafsky2024}. Historiquement, ces tâches ont été abordées par des approches symboliques fondées sur des règles linguistiques explicites, avant d'être progressivement supplantées par des méthodes statistiques, puis par des approches fondées sur l'apprentissage profond \citep{goldberg2017}.
+
+\subsection{Des approches statistiques aux réseaux de neurones}
+
+Les premières approches statistiques du \nlp{} reposaient sur des modèles de type \textit{n}-grammes et des représentations vectorielles creuses telles que le TF-IDF (\textit{Term Frequency -- Inverse Document Frequency}). Le modèle TF-IDF, formalisé par \citet{sparckjones1972}, attribue à chaque terme d'un document un poids reflétant sa fréquence dans le document pondérée par sa rareté dans le corpus. Si cette approche permet de capturer l'importance relative des termes, elle ignore l'ordre des mots et ne modélise pas les relations sémantiques entre eux.
+
+L'introduction du modèle Word2Vec par \citet{mikolov2013} a marqué un tournant dans le domaine. En entraînant un réseau de neurones peu profond à prédire un mot à partir de son contexte (architecture CBOW, \textit{Continuous Bag of Words}) ou le contexte à partir d'un mot (architecture Skip-gram), Word2Vec produit des représentations vectorielles denses --- ou \textit{embeddings} --- dans lesquelles les relations sémantiques et syntaxiques entre les mots sont encodées sous forme de régularités géométriques. Par exemple, la relation vectorielle $\vec{roi} - \vec{homme} + \vec{femme} \approx \vec{reine}$ illustre la capacité de ces représentations à capturer des analogies sémantiques.
+
+Le modèle GloVe (\textit{Global Vectors for Word Representation}), proposé par \citet{pennington2014}, combine les avantages des approches par factorisation matricielle et des modèles prédictifs en apprenant des vecteurs de mots à partir de la matrice de co-occurrence globale du corpus. FastText, développé par \citet{bojanowski2017}, étend l'approche Word2Vec en représentant chaque mot comme un sac de sous-mots (\textit{character n-grams}), permettant ainsi de gérer les mots hors vocabulaire et de mieux capturer les régularités morphologiques.
+
+\subsection{L'émergence des réseaux récurrents et de l'attention}
+
+Les réseaux de neurones récurrents (RNN, \textit{Recurrent Neural Networks}), et en particulier leurs variantes LSTM (\textit{Long Short-Term Memory}) \citep{hochreiter1997} et GRU (\textit{Gated Recurrent Unit}) \citep{cho2014}, ont constitué une avancée majeure pour les tâches de \nlp{} séquentielles. Ces architectures traitent les séquences mot par mot en maintenant un état caché qui encode l'historique des mots précédemment traités. Cependant, malgré les mécanismes de gating destinés à atténuer le problème de la disparition du gradient, les RNN présentent des difficultés à capturer les dépendances à longue portée et ne se prêtent pas aisément à la parallélisation, ce qui limite leur efficacité sur les séquences longues.
+
+Le mécanisme d'attention, introduit par \citet{bahdanau2015} dans le contexte de la traduction automatique neuronale, a permis de surmonter partiellement ces limitations. En permettant au modèle de pondérer différemment les éléments de la séquence d'entrée en fonction de leur pertinence pour chaque élément de la séquence de sortie, l'attention sélective a considérablement amélioré les performances des systèmes séquence-à-séquence.
+
+\section{L'architecture Transformer}
+\label{sec:transformer}
+
+L'architecture Transformer, introduite par \citet{vaswani2017} dans l'article fondateur \textit{``Attention Is All You Need''}, a constitué une rupture paradigmatique en \nlp{}. En abandonnant entièrement les récurrences au profit d'un mécanisme d'auto-attention (\textit{self-attention}), le Transformer permet un traitement parallèle de l'ensemble de la séquence d'entrée, résolvant ainsi les problèmes de scalabilité des RNN.
+
+\subsection{Mécanisme d'auto-attention}
+
+Le mécanisme d'auto-attention \textit{Scaled Dot-Product Attention} calcule, pour chaque élément d'une séquence, une représentation contextuelle en pondérant l'ensemble des éléments de la même séquence. Formellement, étant donné des matrices de requêtes $Q$, de clés $K$ et de valeurs $V$, l'attention est calculée comme suit~:
+
+\begin{equation}
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+\label{eq:attention}
+\end{equation}
+
+\noindent où $d_k$ désigne la dimension des vecteurs de clés, et le facteur $\frac{1}{\sqrt{d_k}}$ est un terme de normalisation qui prévient la saturation de la fonction softmax pour les grandes valeurs de $d_k$ \citep{vaswani2017}.
+
+\subsection{Attention multi-têtes}
+
+Le Transformer utilise une attention multi-têtes (\textit{Multi-Head Attention}) qui projette les requêtes, clés et valeurs dans $h$ sous-espaces distincts, permettant au modèle de capturer simultanément différents types de relations~:
+
+\begin{equation}
+\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)W^O
+\label{eq:multihead}
+\end{equation}
+
+\noindent avec $\text{head}_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)$, où $W_i^Q \in \mathbb{R}^{d_{\text{model}} \times d_k}$, $W_i^K \in \mathbb{R}^{d_{\text{model}} \times d_k}$, $W_i^V \in \mathbb{R}^{d_{\text{model}} \times d_v}$ et $W^O \in \mathbb{R}^{hd_v \times d_{\text{model}}}$ sont des matrices de projection apprises \citep{vaswani2017}.
+
+\subsection{Architecture encodeur-décodeur}
+
+Le Transformer adopte une architecture encodeur-décodeur. L'encodeur, composé de $N$ couches identiques, transforme la séquence d'entrée en une séquence de représentations contextuelles. Chaque couche de l'encodeur comprend un sous-module d'auto-attention multi-têtes suivi d'un réseau de neurones \textit{feed-forward} à propagation directe, le tout assorti de connexions résiduelles et de normalisation de couche (\textit{layer normalization}).
+
+Le décodeur, également composé de $N$ couches, génère la séquence de sortie de manière auto-régressive. Outre les sous-modules d'auto-attention et \textit{feed-forward}, chaque couche du décodeur intègre un module d'attention croisée (\textit{cross-attention}) qui porte sur les représentations produites par l'encodeur, permettant au décodeur d'accéder à l'information encodée à chaque étape de la génération \citep{vaswani2017}.
+
+\subsection{Encodage positionnel}
+
+En l'absence de récurrence, le Transformer n'a pas de notion intrinsèque de l'ordre des éléments dans la séquence. Pour pallier cette limitation, des encodages positionnels (\textit{positional encodings}) sont ajoutés aux \textit{embeddings} d'entrée. \citet{vaswani2017} utilisent des fonctions sinusoïdales de fréquences variables~:
+
+\begin{align}
+PE_{(pos, 2i)}   &= \sin\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right) \\
+PE_{(pos, 2i+1)} &= \cos\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right)
+\end{align}
+
+\noindent où $pos$ désigne la position dans la séquence et $i$ l'indice de la dimension.
+
+\section{Les modèles de langue pré-entraînés}
+
+L'architecture Transformer a donné naissance à deux grandes familles de modèles de langue pré-entraînés, selon qu'ils exploitent l'encodeur, le décodeur ou les deux.
+
+\subsection{Modèles fondés sur l'encodeur~: BERT}
+
+BERT (\textit{Bidirectional Encoder Representations from Transformers}), proposé par \citet{devlin2019}, exploite uniquement la pile d'encodeurs du Transformer. Son pré-entraînement repose sur deux tâches auto-supervisées~: le \textit{Masked Language Modeling} (MLM), dans lequel un pourcentage aléatoire de tokens est masqué et le modèle doit les prédire à partir de leur contexte bidirectionnel, et la \textit{Next Sentence Prediction} (NSP), dans laquelle le modèle doit déterminer si deux phrases sont consécutives dans le corpus original.
+
+La nature bidirectionnelle de BERT lui permet de produire des représentations contextuelles riches, particulièrement adaptées aux tâches de compréhension du langage naturel telles que la classification de texte, la reconnaissance d'entités nommées et le question-answering extractif \citep{devlin2019}.
+
+\subsection{Modèles fondés sur le décodeur~: GPT}
+
+La famille GPT (\textit{Generative Pre-trained Transformer}), initiée par \citet{radford2018}, exploite la pile de décodeurs du Transformer dans un paradigme de modélisation causale du langage. Le modèle est entraîné à prédire le token suivant étant donné les tokens précédents, de manière auto-régressive. Cette approche est naturellement adaptée aux tâches de génération de texte.
+
+GPT-2 \citep{radford2019} a démontré que l'augmentation de l'échelle des modèles et des données d'entraînement conduisait à des capacités émergentes de \textit{zero-shot} et \textit{few-shot learning}. GPT-3, avec ses 175 milliards de paramètres, a confirmé cette tendance en établissant de nouveaux standards sur un large éventail de tâches de \nlp{} \citep{brown2020}.
+
+\subsection{Sentence-BERT et les embeddings de phrases}
+
+Si BERT produit des \textit{embeddings} contextuels de haute qualité au niveau des tokens, son utilisation directe pour le calcul de similarité entre phrases est computationnellement coûteuse, car elle nécessite le traitement conjoint de chaque paire de phrases. \citet{reimers2019} ont proposé Sentence-BERT (SBERT), une modification de BERT utilisant des réseaux siamois et une fonction d'agrégation (\textit{mean pooling}) pour produire des \textit{embeddings} de phrases directement comparables par similarité cosinus.
+
+SBERT a permis de rendre les modèles Transformer compatibles avec les tâches de recherche sémantique à grande échelle, en réduisant le temps de recherche de similarité entre 10\,000 phrases de 65 heures (avec BERT) à environ 5 secondes (avec SBERT et un index pré-calculé) \citep{reimers2019}. Cette avancée est fondamentale pour le composant de recherche des systèmes \rag{}.
+
+\section{La recherche d'information}
+\label{sec:ri}
+
+La recherche d'information (\textit{Information Retrieval}, IR) constitue le socle du composant de recherche (\textit{retriever}) dans les systèmes \rag{}. Deux paradigmes principaux coexistent~: la recherche lexicale et la recherche sémantique.
+
+\subsection{Recherche lexicale~: BM25}
+
+BM25 (\textit{Best Matching 25}), formalisé par \citet{robertson2009}, est la fonction de classement de référence en recherche d'information lexicale. Héritier du modèle probabiliste de pertinence, BM25 évalue la pertinence d'un document $D$ par rapport à une requête $Q = \{q_1, q_2, \ldots, q_n\}$ composée de $n$ termes~:
+
+\begin{equation}
+\text{BM25}(D, Q) = \sum_{i=1}^{n} \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgdl}}\right)}
+\label{eq:bm25}
+\end{equation}
+
+\noindent où $f(q_i, D)$ désigne la fréquence du terme $q_i$ dans le document $D$, $|D|$ la longueur du document en nombre de termes, $\text{avgdl}$ la longueur moyenne des documents du corpus, $k_1$ et $b$ sont des hyperparamètres de réglage (typiquement $k_1 \in [1.2, 2.0]$ et $b = 0.75$), et $\text{IDF}(q_i)$ est la fréquence inverse de document \citep{robertson2009}.
+
+BM25 présente l'avantage d'être rapide, interprétable et ne nécessitant aucun entraînement préalable. Cependant, il est fondamentalement limité par sa dépendance à la correspondance lexicale exacte~: il ne peut pas identifier la pertinence d'un document qui utilise des synonymes ou des reformulations de la requête.
+
+\subsection{Recherche sémantique par embeddings denses}
+
+La recherche sémantique, ou recherche par vecteurs denses (\textit{dense retrieval}), repose sur l'encodage des requêtes et des documents dans un espace vectoriel continu au moyen de modèles d'\textit{embedding} tels que SBERT \citep{reimers2019}. La pertinence est alors mesurée par la similarité cosinus entre les vecteurs~:
+
+\begin{equation}
+\text{sim}(\mathbf{q}, \mathbf{d}) = \frac{\mathbf{q} \cdot \mathbf{d}}{\|\mathbf{q}\| \cdot \|\mathbf{d}\|}
+\label{eq:cosine}
+\end{equation}
+
+\noindent où $\mathbf{q}$ et $\mathbf{d}$ sont respectivement les vecteurs d'\textit{embedding} de la requête et du document.
+
+Cette approche permet de capturer la similarité sémantique au-delà de la correspondance lexicale. Cependant, elle nécessite des modèles d'\textit{embedding} entraînés sur des données représentatives du domaine et peut échouer à capturer la pertinence lorsque celle-ci repose sur la présence de termes techniques rares \citep{gao2024}.
+
+\subsection{Recherche hybride}
+
+La recherche hybride combine les signaux lexicaux et sémantiques afin de bénéficier des complémentarités des deux approches. Une stratégie courante consiste à fusionner les scores de BM25 et de la recherche sémantique par combinaison linéaire pondérée~:
+
+\begin{equation}
+\text{score}_{\text{hybride}}(D, Q) = \alpha \cdot \text{score}_{\text{sémantique}}(D, Q) + (1 - \alpha) \cdot \text{score}_{\text{BM25}}(D, Q)
+\label{eq:hybrid}
+\end{equation}
+
+\noindent où $\alpha \in [0, 1]$ contrôle la pondération relative des deux composantes. Cette approche est recommandée par plusieurs travaux récents \citep{gao2024} et sera évaluée dans le cadre du benchmarking réalisé dans ce projet.
+
+\section{Le Retrieval-Augmented Generation}
+\label{sec:rag}
+
+\subsection{Définition et motivation}
+
+Le \textit{Retrieval-Augmented Generation} (\rag{}) est un paradigme introduit par \citet{lewis2020} qui enrichit les modèles de langue génératifs par un accès dynamique à une base de connaissances externe. La motivation principale est de pallier les limitations des \llm{} purs~: connaissances figées, hallucinations et absence de traçabilité des sources.
+
+Formellement, étant donné une requête $x$, un système \rag{} procède en deux étapes~:
+\begin{enumerate}[nosep]
+  \item \textbf{Recherche} (\textit{Retrieval})~: un composant de recherche $p_\eta(z|x)$ identifie un ensemble de documents pertinents $z = \{z_1, z_2, \ldots, z_k\}$ dans un corpus indexé.
+  \item \textbf{Génération} (\textit{Generation})~: un modèle génératif $p_\theta(y|x, z)$ produit la réponse $y$ conditionnée à la fois sur la requête $x$ et sur les documents retrouvés $z$.
+\end{enumerate}
+
+\citet{lewis2020} distinguent deux variantes~: \textbf{RAG-Sequence}, où le même ensemble de documents conditionne la génération de l'intégralité de la réponse, et \textbf{RAG-Token}, où un ensemble de documents potentiellement différent peut être utilisé pour chaque token généré.
+
+\subsection{Architecture générale d'un système RAG}
+
+L'architecture d'un système \rag{} se décompose en plusieurs composants, qui constituent les étapes du pipeline de traitement~:
+
+\begin{enumerate}
+  \item \textbf{Ingestion documentaire}~: collecte, nettoyage et préparation des documents sources.
+  \item \textbf{Découpage} (\textit{chunking})~: segmentation des documents en passages de taille contrôlée, avec un chevauchement optionnel pour préserver la cohérence contextuelle aux frontières.
+  \item \textbf{Vectorisation} (\textit{embedding})~: transformation des passages en représentations vectorielles denses au moyen d'un modèle d'\textit{embedding}.
+  \item \textbf{Indexation}~: stockage des vecteurs dans un index optimisé pour la recherche de similarité, typiquement une base de données vectorielle.
+  \item \textbf{Recherche} (\textit{retrieval})~: étant donné une requête utilisateur, recherche des $k$ passages les plus pertinents dans l'index.
+  \item \textbf{Augmentation} (\textit{augmentation})~: construction d'un prompt enrichi intégrant la requête et les passages retrouvés.
+  \item \textbf{Génération}~: production de la réponse par le \llm{}, conditionnée sur le prompt augmenté.
+\end{enumerate}
+
+\subsection{État de l'art et évolutions récentes}
+
+Depuis les travaux fondateurs de \citet{lewis2020}, le domaine du \rag{} a connu une évolution rapide. \citet{gao2024} proposent une taxonomie distinguant le \textit{Naive RAG}, le \textit{Advanced RAG} et le \textit{Modular RAG}, caractérisant les niveaux croissants de sophistication dans l'architecture et l'optimisation des systèmes.
+
+Le \textit{Naive RAG} suit le schéma linéaire indexation-recherche-génération décrit ci-dessus. Le \textit{Advanced RAG} introduit des optimisations telles que le pré-traitement des requêtes (\textit{query rewriting}), le re-classement (\textit{re-ranking}) des documents retrouvés et l'optimisation du découpage documentaire. Le \textit{Modular RAG} pousse la flexibilité plus loin en permettant la composition dynamique des composants en fonction du type de requête \citep{gao2024}.
+
+\citet{barnett2024} identifient sept points de défaillance récurrents dans les systèmes \rag{}~: documents pertinents non retrouvés, documents non pertinents retrouvés, extraction de contexte insuffisante, réponse non fidèle aux documents sources, réponse incomplète, réponse incorrecte malgré des documents pertinents, et réponse non pertinente par rapport à la question. Cette taxonomie des défaillances constitue un cadre précieux pour guider la conception et l'évaluation des systèmes \rag{}.
+
+
+% ============================================================
+% CHAPITRE 3 : FONDEMENTS THÉORIQUES
+% ============================================================
+\chapter{Fondements théoriques}
+\label{chap:fondements}
+
+Ce chapitre approfondit les fondements théoriques des composants clés du système \rag{} développé dans ce travail~: les stratégies de découpage documentaire, les modèles d'\textit{embedding}, et les métriques d'évaluation.
+
+\section{Stratégies de découpage documentaire}
+\label{sec:chunking}
+
+Le découpage (\textit{chunking}) des documents en passages constitue une étape critique du pipeline \rag{}, car il détermine la granularité des unités d'information indexées et retrouvées. Un découpage trop fin risque de fragmenter le contexte nécessaire à la compréhension, tandis qu'un découpage trop grossier peut diluer l'information pertinente dans du contenu non pertinent, réduisant la précision de la recherche \citep{gao2024}.
+
+\subsection{Découpage par taille fixe}
+
+La méthode la plus simple consiste à diviser le texte en segments de taille fixe, mesurée en tokens ou en caractères. Cette approche, recommandée comme baseline par \citet{gao2024}, présente l'avantage de la simplicité et de la reproductibilité. Le paramètre de chevauchement (\textit{overlap}) permet de préserver la continuité sémantique entre segments adjacents en dupliquant une portion du texte aux frontières.
+
+Trois paramètres doivent être déterminés~:
+\begin{itemize}[nosep]
+  \item La \textbf{taille du chunk} (\textit{chunk size})~: nombre de tokens par segment. Des tailles couramment utilisées vont de 128 à 1024 tokens.
+  \item Le \textbf{chevauchement} (\textit{overlap})~: nombre de tokens partagés entre segments consécutifs, typiquement de 10\% à 20\% de la taille du chunk.
+  \item L'\textbf{unité de mesure}~: tokens, mots ou caractères.
+\end{itemize}
+
+\subsection{Découpage structurel}
+
+Le découpage structurel exploite la structure inhérente du document (titres, sections, paragraphes, balises HTML/Markdown) pour identifier des frontières de segmentation sémantiquement cohérentes. Cette approche est particulièrement adaptée à la documentation technique, qui présente une organisation hiérarchique explicite. Dans le cadre de ce travail, les documents provenant de sources HTML sont pré-traités pour exploiter les balises de structuration (\texttt{<h1>}, \texttt{<h2>}, \texttt{<p>}, etc.) avant le découpage.
+
+\section{Modèles d'embedding}
+\label{sec:embedding_models}
+
+Le choix du modèle d'\textit{embedding} détermine la qualité des représentations vectorielles et, par conséquent, la capacité du système à identifier les passages sémantiquement pertinents. Trois modèles ont été sélectionnés pour l'étude comparative réalisée dans ce projet, sur la base de leur positionnement dans les benchmarks de la communauté et de leur pertinence pour le cas d'usage considéré.
+
+\subsection{all-MiniLM-L6-v2}
+
+Le modèle \texttt{all-MiniLM-L6-v2} \citep{reimers2019} est un modèle SBERT distillé à partir de MiniLM \citep{wang2020minilm}. Avec 6 couches de Transformer et une dimension d'\textit{embedding} de 384, il offre un compromis favorable entre performance et efficacité computationnelle. Ce modèle est largement utilisé comme baseline dans les applications de recherche sémantique en raison de sa rapidité d'inférence et de ses performances compétitives sur les benchmarks de similarité sémantique.
+
+\subsection{paraphrase-multilingual-MiniLM-L12-v2}
+
+Le modèle \texttt{paraphrase-multilingual-MiniLM-L12-v2} \citep{reimers2020} étend l'approche SBERT à un cadre multilingue. Entraîné sur des données de paraphrase dans plus de 50 langues, il produit des \textit{embeddings} de dimension 384 au moyen de 12 couches de Transformer. Son inclusion dans cette étude vise à évaluer si un modèle multilingue peut égaler ou surpasser les modèles monolingues anglais sur un corpus de documentation technique principalement anglophone.
+
+\subsection{all-mpnet-base-v2}
+
+Le modèle \texttt{all-mpnet-base-v2} \citep{reimers2019} est fondé sur l'architecture MPNet \citep{song2020mpnet}, qui combine les objectifs de pré-entraînement de BERT (MLM) et de XLNet (modélisation par permutation). Avec 12 couches et une dimension d'\textit{embedding} de 768, il constitue le modèle le plus expressif de cette sélection. Il se positionne systématiquement parmi les modèles les plus performants sur le benchmark SBERT (\textit{Sentence Transformers Leaderboard}) pour les tâches de similarité sémantique en anglais.
+
+\section{Métriques d'évaluation du retrieval}
+\label{sec:metriques_retrieval}
+
+L'évaluation du composant de recherche (\textit{retriever}) nécessite des métriques quantifiant la capacité du système à retrouver les passages pertinents parmi les $k$ premiers résultats. Trois métriques sont retenues dans cette étude, conformément aux pratiques établies dans la littérature en recherche d'information \citep{manning2008}.
+
+\subsection{Hit Rate@k}
+
+Le \textit{Hit Rate@k} (ou \textit{Recall@k} binaire) mesure la proportion de requêtes pour lesquelles au moins un document pertinent figure parmi les $k$ premiers résultats~:
+
+\begin{equation}
+\text{Hit Rate@}k = \frac{1}{|Q|} \sum_{q \in Q} \mathbb{1}\left[\exists\, d \in \text{top-}k(q) : d \in \text{Rel}(q)\right]
+\label{eq:hitrate}
+\end{equation}
+
+\noindent où $Q$ est l'ensemble des requêtes, $\text{top-}k(q)$ les $k$ premiers documents retrouvés pour la requête $q$, $\text{Rel}(q)$ l'ensemble des documents pertinents pour $q$, et $\mathbb{1}[\cdot]$ la fonction indicatrice.
+
+\subsection{Mean Reciprocal Rank@k (MRR@k)}
+
+Le \textit{Mean Reciprocal Rank} mesure la position moyenne du premier document pertinent dans le classement~:
+
+\begin{equation}
+\text{MRR@}k = \frac{1}{|Q|} \sum_{q \in Q} \frac{1}{\text{rang}_q}
+\label{eq:mrr}
+\end{equation}
+
+\noindent où $\text{rang}_q$ désigne le rang du premier document pertinent parmi les $k$ premiers résultats pour la requête $q$ (et $\frac{1}{\text{rang}_q} = 0$ si aucun document pertinent ne figure dans les $k$ premiers résultats). Le MRR accorde une importance particulière à la capacité du système à placer le document pertinent en tête du classement \citep{manning2008}.
+
+\subsection{Precision@k}
+
+La \textit{Precision@k} mesure la proportion de documents pertinents parmi les $k$ premiers résultats~:
+
+\begin{equation}
+\text{Precision@}k = \frac{1}{|Q|} \sum_{q \in Q} \frac{|\text{top-}k(q) \cap \text{Rel}(q)|}{k}
+\label{eq:precision}
+\end{equation}
+
+Dans le cadre de ce travail, $k = 5$ est retenu pour l'ensemble des métriques, conformément aux pratiques courantes et à la contrainte pratique de ne pas submerger le \llm{} de contexte lors de la phase de génération.
+
+\section{Métriques d'évaluation de la génération}
+\label{sec:metriques_generation}
+
+L'évaluation de la qualité des réponses générées par le composant génératif du système \rag{} requiert des métriques spécifiques. \citet{es2024ragas} proposent le cadre RAGAS (\textit{Retrieval-Augmented Generation Assessment}), qui définit un ensemble de métriques dédiées à l'évaluation des systèmes \rag{}~:
+
+\begin{itemize}
+  \item \textbf{Fidélité} (\textit{Faithfulness})~: mesure dans quelle proportion les affirmations de la réponse générée sont effectivement soutenues par les documents retrouvés. Cette métrique évalue l'ancrage factuel de la réponse et détecte les hallucinations.
+  \item \textbf{Pertinence de la réponse} (\textit{Answer Relevancy})~: évalue la pertinence de la réponse par rapport à la question posée, indépendamment de la fidélité aux sources.
+  \item \textbf{Précision du contexte} (\textit{Context Precision})~: mesure la proportion des passages retrouvés qui sont effectivement pertinents pour répondre à la question.
+  \item \textbf{Rappel du contexte} (\textit{Context Recall})~: évalue si les passages retrouvés couvrent l'ensemble des informations nécessaires pour répondre à la question.
+\end{itemize}
+
+Ces métriques offrent une évaluation multi-dimensionnelle du système \rag{}, couvrant à la fois la qualité de la recherche et celle de la génération \citep{es2024ragas}.
+
+
+% ============================================================
+% CHAPITRE 4 : MÉTHODOLOGIE
+% ============================================================
+\chapter{Méthodologie}
+\label{chap:methodologie}
+
+Ce chapitre présente la méthodologie adoptée pour la conception et l'implémentation du système \rag{}. Il décrit l'architecture générale du pipeline, les étapes de traitement documentaire, le protocole de benchmarking et les choix techniques effectués.
+
+\section{Architecture générale du pipeline}
+
+Le système proposé suit une architecture modulaire organisée en étapes séquentielles. Chaque étape est implémentée sous la forme d'un script Python indépendant, orchestré par un script principal permettant l'exécution sélective via la commande \texttt{python main.py --etape N}. Cette modularité facilite le développement incrémental, le débogage et la reproductibilité des expériences.
+
+Le pipeline se décompose en les étapes suivantes~:
+
+\begin{enumerate}
+  \item \textbf{Étape 1 --- Collecte}~: acquisition des documents de la documentation officielle.
+  \item \textbf{Étape 2 --- Nettoyage}~: prétraitement et normalisation des documents collectés.
+  \item \textbf{Étape 3 --- Benchmarking}~: évaluation comparative des configurations de chunking, d'embedding et de recherche.
+  \item \textbf{Étape 4 --- Indexation}~: construction de l'index vectoriel avec la configuration optimale identifiée.
+  \item \textbf{Étape 5 --- Recherche et génération}~: implémentation du pipeline complet de question-answering.
+  \item \textbf{Étape 6 --- Évaluation}~: évaluation quantitative des performances du système.
+\end{enumerate}
+
+La figure~\ref{fig:pipeline} présente schématiquement l'architecture du pipeline.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=1.2cm,
+  block/.style={rectangle, draw, fill=blue!10, text width=10em, text centered, rounded corners, minimum height=3em},
+  arrow/.style={->, thick, >=stealth}
+]
+  \node[block] (collecte)   {Collecte\\(\textit{Étape 1})};
+  \node[block, below=of collecte] (nettoyage)  {Nettoyage\\(\textit{Étape 2})};
+  \node[block, below=of nettoyage] (benchmark) {Benchmarking\\(\textit{Étape 3})};
+  \node[block, below=of benchmark] (indexation) {Indexation\\(\textit{Étape 4})};
+  \node[block, below=of indexation] (retrieval) {Recherche \& Génération\\(\textit{Étape 5})};
+  \node[block, below=of retrieval] (evaluation) {Évaluation\\(\textit{Étape 6})};
+
+  \draw[arrow] (collecte) -- (nettoyage);
+  \draw[arrow] (nettoyage) -- (benchmark);
+  \draw[arrow] (benchmark) -- (indexation);
+  \draw[arrow] (indexation) -- (retrieval);
+  \draw[arrow] (retrieval) -- (evaluation);
+\end{tikzpicture}
+\caption{Architecture du pipeline de traitement documentaire et de question-answering.}
+\label{fig:pipeline}
+\end{figure}
+
+\section{Collecte documentaire (Étape 1)}
+\label{sec:collecte}
+
+La première étape consiste à collecter la documentation technique des trois sources ciblées. Deux stratégies de collecte ont été employées en fonction de la structure et de l'accessibilité des sources~:
+
+\begin{itemize}
+  \item \textbf{Python 3.13 et Scikit-learn 1.5}~: la documentation a été collectée à partir des sites officiels par \textit{web scraping}, en extrayant les pages HTML pertinentes.
+  \item \textbf{LangChain}~: en raison d'une restructuration du site officiel rendant le \textit{scraping} inopérant, la documentation a été collectée par clonage du dépôt GitHub contenant les fichiers sources de la documentation.
+\end{itemize}
+
+Le corpus collecté comprend un total de \textbf{1\,292 documents} répartis comme suit~: 554 documents pour Python 3.13, 159 documents pour Scikit-learn 1.5 et 579 documents pour LangChain.
+
+\section{Nettoyage documentaire (Étape 2)}
+\label{sec:nettoyage}
+
+L'étape de nettoyage vise à normaliser et à épurer les documents collectés afin d'améliorer la qualité du corpus avant les étapes de découpage et de vectorisation. Les opérations de nettoyage comprennent~:
+
+\begin{itemize}[nosep]
+  \item La suppression des balises HTML résiduelles et des métadonnées non pertinentes.
+  \item La normalisation des espaces, des sauts de ligne et des caractères spéciaux.
+  \item La suppression des documents vides, dupliqués ou dont le contenu est inférieur à un seuil minimal de longueur.
+  \item La conservation des blocs de code, essentiels dans la documentation technique.
+\end{itemize}
+
+Après nettoyage, le corpus est réduit à \textbf{1\,047 documents}, soit une réduction de 19\% du volume initial, principalement due à la suppression de documents vides ou trop courts pour constituer des unités d'information exploitables.
+
+\section{Benchmarking (Étape 3)}
+\label{sec:benchmarking}
+
+Le benchmarking constitue une étape centrale de la méthodologie. Son objectif est d'identifier empiriquement la combinaison optimale de paramètres de chunking, de modèle d'embedding et de stratégie de recherche, sur la base de métriques quantitatives. Cette démarche est conforme aux recommandations de \citet{gao2024}, qui soulignent l'importance d'une évaluation systématique des hyperparamètres du pipeline \rag{}.
+
+\subsection{Espace de configurations}
+
+L'espace de recherche exploré dans ce benchmarking est défini par le produit cartésien de trois dimensions~:
+
+\paragraph{Configurations de chunking.} Neuf configurations sont évaluées, résultant de la combinaison de trois tailles de chunk (256, 400 et 512 tokens) et de trois valeurs de chevauchement (30, 50 et 80 tokens). Ces valeurs ont été choisies sur la base de la littérature~: \citet{gao2024} recommandent des tailles de chunk entre 128 et 512 tokens, et les chevauchements testés correspondent à des proportions de 6\% à 31\% de la taille du chunk, couvrant la plage recommandée.
+
+\paragraph{Modèles d'embedding.} Trois modèles sont comparés~:
+\begin{itemize}[nosep]
+  \item \texttt{all-MiniLM-L6-v2} (384 dimensions, 6 couches)~;
+  \item \texttt{paraphrase-multilingual-MiniLM-L12-v2} (384 dimensions, 12 couches)~;
+  \item \texttt{all-mpnet-base-v2} (768 dimensions, 12 couches).
+\end{itemize}
+
+\paragraph{Stratégies de recherche.} Quatre stratégies sont évaluées~:
+\begin{itemize}[nosep]
+  \item Recherche sémantique pure (similarité cosinus)~;
+  \item Recherche lexicale BM25~;
+  \item Recherche hybride avec pondération 70/30 (sémantique/BM25)~;
+  \item Recherche hybride avec pondération 50/50 (sémantique/BM25).
+\end{itemize}
+
+L'espace total comprend ainsi $9 \times 3 \times 4 = 108$ configurations distinctes, chacune évaluée sur l'ensemble des métriques retenues.
+
+\subsection{Jeu de données d'évaluation}
+
+Un jeu de 20 paires question-réponse a été construit manuellement. Chaque paire comprend une question technique formulée en langage naturel et le ou les passages de référence de la documentation contenant la réponse. Les questions couvrent les trois sources documentaires et varient en complexité~: questions factuelles simples, questions nécessitant la synthèse de plusieurs passages, et questions portant sur des concepts techniques spécifiques.
+
+La construction manuelle de ce jeu d'évaluation, bien que coûteuse en temps, garantit la qualité et la pertinence des annotations, évitant les biais des méthodes de génération automatique de questions.
+
+\subsection{Métriques de benchmarking}
+
+Trois métriques sont calculées pour chaque configuration, avec $k = 5$~:
+\begin{itemize}[nosep]
+  \item \textbf{Hit Rate@5}~: proportion de requêtes pour lesquelles au moins un passage pertinent figure parmi les 5 premiers résultats (cf.\ équation~\ref{eq:hitrate}).
+  \item \textbf{MRR@5}~: rang réciproque moyen du premier passage pertinent parmi les 5 premiers résultats (cf.\ équation~\ref{eq:mrr}).
+  \item \textbf{Precision@5}~: proportion moyenne de passages pertinents parmi les 5 premiers résultats (cf.\ équation~\ref{eq:precision}).
+\end{itemize}
+
+\section{Indexation (Étape 4)}
+\label{sec:indexation}
+
+L'étape d'indexation consiste à appliquer la configuration optimale identifiée par le benchmarking à l'ensemble du corpus nettoyé. Les documents sont découpés selon la taille de chunk et le chevauchement optimaux, puis vectorisés au moyen du modèle d'\textit{embedding} le plus performant. Les vecteurs résultants sont stockés dans une base de données vectorielle permettant une recherche de similarité efficace.
+
+\section{Recherche et génération (Étape 5)}
+\label{sec:retrieval_generation}
+
+Le composant de recherche et de génération constitue le c\oe{}ur opérationnel du système \rag{}. Étant donné une question de l'utilisateur, le pipeline procède comme suit~:
+
+\begin{enumerate}[nosep]
+  \item La question est vectorisée au moyen du modèle d'\textit{embedding} retenu.
+  \item Les $k$ passages les plus pertinents sont retrouvés dans l'index vectoriel selon la stratégie de recherche optimale.
+  \item Un prompt est construit en intégrant la question et les passages retrouvés dans un format structuré.
+  \item Le prompt augmenté est soumis au \llm{} pour la génération de la réponse.
+\end{enumerate}
+
+\subsection{Choix du modèle de langue pour la génération}
+
+Le choix du \llm{} pour le composant génératif repose sur plusieurs critères~: la qualité de la génération, la capacité à suivre les instructions (\textit{instruction-following}), la taille de la fenêtre de contexte, l'accessibilité (licence, coût d'utilisation) et les performances sur les tâches de question-answering.
+
+Parmi les modèles disponibles, \textbf{Mistral 7B Instruct} \citep{jiang2023mistral} constitue un choix pertinent pour les raisons suivantes~:
+\begin{itemize}
+  \item \textbf{Performance}~: Mistral 7B surpasse LLaMA 2 13B sur l'ensemble des benchmarks évalués et égale LLaMA 1 34B sur plusieurs tâches, malgré un nombre de paramètres significativement inférieur \citep{jiang2023mistral}. Cela en fait un modèle offrant un ratio performance/taille avantageux.
+  \item \textbf{Architecture}~: Mistral 7B intègre des mécanismes d'attention par groupes de requêtes (\textit{Grouped-Query Attention}, GQA) et d'attention par fenêtre glissante (\textit{Sliding Window Attention}, SWA), permettant un traitement efficace des séquences longues avec une complexité mémoire réduite.
+  \item \textbf{Fenêtre de contexte}~: la fenêtre de contexte de 8\,192 tokens est suffisante pour intégrer les passages retrouvés et la question dans un prompt structuré.
+  \item \textbf{Accessibilité}~: Mistral 7B est distribué sous licence Apache 2.0, permettant une utilisation libre dans un cadre académique et industriel.
+  \item \textbf{Instruction-following}~: la version \textit{Instruct}, affinée par \textit{Supervised Fine-Tuning} (SFT) et \textit{Direct Preference Optimization} (DPO), est optimisée pour suivre des instructions structurées, ce qui est essentiel dans un pipeline \rag{} où le prompt doit guider précisément la génération.
+\end{itemize}
+
+\section{Évaluation du système (Étape 6)}
+\label{sec:evaluation}
+
+L'évaluation du système \rag{} est conduite à deux niveaux~:
+
+\paragraph{Évaluation du retriever.} Les métriques Hit Rate@5, MRR@5 et Precision@5, déjà utilisées lors du benchmarking, sont recalculées sur la configuration finale déployée pour confirmer les performances observées en phase d'optimisation.
+
+\paragraph{Évaluation de la génération.} La qualité des réponses générées est évaluée au moyen du cadre RAGAS \citep{es2024ragas}, qui fournit les métriques de fidélité, de pertinence de la réponse, de précision du contexte et de rappel du contexte (cf.\ section~\ref{sec:metriques_generation}).
+
+
+% ============================================================
+% CHAPITRE 5 : OUTILS ET TECHNOLOGIES
+% ============================================================
+\chapter{Outils et technologies}
+\label{chap:outils}
+
+Ce chapitre présente les outils, technologies et bibliothèques mobilisés dans la réalisation du système \rag{}. Chaque choix technique est justifié par rapport aux exigences du projet.
+
+\section{Langage de programmation~: Python}
+
+Python a été retenu comme langage de programmation principal pour l'ensemble du pipeline. Ce choix se justifie par la richesse de son écosystème scientifique, sa domination dans les domaines de l'apprentissage automatique et du \nlp{}, et la disponibilité de bibliothèques matures pour chacune des composantes du pipeline~: collecte de données, traitement de texte, apprentissage profond, recherche vectorielle et interaction avec les \llm{}.
+
+\section{Environnement de développement}
+
+Le développement est réalisé dans \textbf{Visual Studio Code} (VS Code), un éditeur extensible offrant une intégration native avec Python, le débogage interactif, les \textit{notebooks} Jupyter et les systèmes de contrôle de version. \textbf{Jupyter Notebook} est utilisé de manière complémentaire pour l'exploration de données, la visualisation des résultats et le prototypage rapide.
+
+\section{Bibliothèques de traitement de texte}
+
+\begin{itemize}
+  \item \textbf{BeautifulSoup}~: utilisée pour le \textit{parsing} et l'extraction de contenu à partir des pages HTML de la documentation. Cette bibliothèque permet de naviguer dans l'arbre DOM et d'extraire sélectivement le contenu textuel tout en préservant la structure.
+  \item \textbf{Requests}~: utilisée pour les requêtes HTTP lors de la phase de collecte par \textit{web scraping}.
+\end{itemize}
+
+\section{Modèles d'embedding~: HuggingFace et Sentence-Transformers}
+
+La bibliothèque \textbf{Sentence-Transformers} \citep{reimers2019}, distribuée via la plateforme HuggingFace, est utilisée pour le chargement et l'inférence des modèles d'\textit{embedding}. HuggingFace offre un accès unifié à des milliers de modèles pré-entraînés, une API standardisée et une communauté active. La bibliothèque Sentence-Transformers simplifie l'encodage de textes en vecteurs denses et le calcul de similarité, tout en prenant en charge le \textit{batching} et l'accélération GPU.
+
+\section{Recherche lexicale~: rank\_bm25}
+
+La bibliothèque \textbf{rank\_bm25} fournit une implémentation légère et conforme de l'algorithme BM25 \citep{robertson2009} en Python. Elle est utilisée pour le composant de recherche lexicale et pour le calcul du score BM25 dans les stratégies de recherche hybride.
+
+\section{Base de données vectorielle}
+
+L'indexation et la recherche de similarité vectorielle sont assurées par une base de données vectorielle. Le choix de la technologie spécifique sera déterminé par les résultats du benchmarking et les contraintes d'intégration. Parmi les options envisagées, \textbf{FAISS} (\textit{Facebook AI Similarity Search}) \citep{johnson2019faiss} constitue un candidat privilégié en raison de sa maturité, de ses performances et de sa compatibilité avec l'écosystème Python.
+
+FAISS, développé par Meta AI Research, est une bibliothèque optimisée pour la recherche de similarité et le clustering de vecteurs denses. Elle prend en charge plusieurs types d'index (flat, IVF, HNSW, PQ) et offre des performances sub-linéaires pour la recherche de plus proches voisins sur des corpus de grande taille \citep{johnson2019faiss}.
+
+\section{Modèle de langue~: Mistral 7B Instruct}
+
+Le modèle \textbf{Mistral 7B Instruct} \citep{jiang2023mistral} est utilisé comme composant génératif du système \rag{}. Le modèle peut être chargé et utilisé localement via la bibliothèque \textbf{Transformers} de HuggingFace, ou accédé via une API. La justification détaillée de ce choix est présentée en section~\ref{sec:retrieval_generation}.
+
+\section{Gestion de version~: Git et GitHub}
+
+Le contrôle de version est assuré par \textbf{Git}, avec hébergement du code source sur \textbf{GitHub}. GitHub a également été utilisé comme source pour la collecte de la documentation LangChain (par clonage de dépôt).
+
+\section{Rédaction scientifique~: \LaTeX{}}
+
+Le présent document est rédigé en \LaTeX{}, un système de composition de documents standard dans la communauté scientifique, garantissant une mise en forme professionnelle, une gestion rigoureuse des références bibliographiques et une qualité typographique élevée.
+
+
+% ============================================================
+% CHAPITRE 6 : PROTOCOLE EXPÉRIMENTAL
+% ============================================================
+\chapter{Protocole expérimental}
+\label{chap:protocole}
+
+Ce chapitre décrit le protocole expérimental mis en \oe{}uvre pour l'évaluation du système \rag{}. Il précise les conditions d'expérimentation, le jeu de données d'évaluation et la procédure de benchmarking.
+
+\section{Cadre expérimental}
+
+L'évaluation du système suit une approche en deux phases~:
+\begin{enumerate}
+  \item \textbf{Phase d'optimisation} (Étape 3 --- Benchmarking)~: évaluation exhaustive des 108 configurations de l'espace de recherche défini en section~\ref{sec:benchmarking}, sur le jeu de 20 paires question-réponse, selon les métriques Hit Rate@5, MRR@5 et Precision@5.
+  \item \textbf{Phase de validation} (Étape 6 --- Évaluation)~: évaluation du pipeline complet (recherche + génération) avec la configuration optimale retenue, au moyen des métriques RAGAS.
+\end{enumerate}
+
+\section{Jeu de données d'évaluation}
+
+Le jeu d'évaluation est composé de 20 paires question-réponse construites manuellement. Les questions sont réparties entre les trois sources documentaires (Python 3.13, Scikit-learn 1.5, LangChain) et couvrent différents niveaux de complexité~:
+
+\begin{itemize}[nosep]
+  \item \textbf{Questions factuelles}~: questions dont la réponse se trouve dans un passage unique et clairement identifiable (ex.~: \textit{``What is the default value of the max\_iter parameter in Scikit-learn's LogisticRegression?''}).
+  \item \textbf{Questions conceptuelles}~: questions nécessitant la compréhension d'un concept et potentiellement la synthèse de plusieurs passages (ex.~: \textit{``How does Python's garbage collector handle circular references?''}).
+  \item \textbf{Questions procédurales}~: questions portant sur des procédures ou des étapes d'utilisation (ex.~: \textit{``How to create a custom retriever in LangChain?''}).
+\end{itemize}
+
+Pour chaque question, le ou les passages de référence de la documentation sont identifiés manuellement, constituant le \textit{ground truth} pour le calcul des métriques de recherche.
+
+\section{Procédure de benchmarking}
+
+Pour chaque configuration $(c, e, s)$ --- où $c$ est la configuration de chunking, $e$ le modèle d'\textit{embedding} et $s$ la stratégie de recherche --- la procédure suivante est appliquée~:
+
+\begin{enumerate}[nosep]
+  \item Le corpus nettoyé est découpé selon la configuration $c$.
+  \item Les chunks résultants sont vectorisés au moyen du modèle $e$.
+  \item Un index temporaire est construit.
+  \item Les 20 requêtes du jeu d'évaluation sont soumises à l'index selon la stratégie $s$.
+  \item Les métriques Hit Rate@5, MRR@5 et Precision@5 sont calculées.
+\end{enumerate}
+
+Les résultats sont agrégés dans un tableau comparatif permettant d'identifier la configuration optimale sur l'ensemble des métriques.
+
+\section{Reproductibilité}
+
+Afin de garantir la reproductibilité des expériences, les mesures suivantes sont mises en \oe{}uvre~:
+\begin{itemize}[nosep]
+  \item Le code source est versionné et structuré de manière modulaire.
+  \item Les hyperparamètres et les configurations sont centralisés dans un fichier de configuration (\texttt{config.py}).
+  \item Les graines aléatoires (\textit{random seeds}) sont fixées lorsque des composants stochastiques sont impliqués.
+  \item Les résultats intermédiaires sont sauvegardés à chaque étape.
+\end{itemize}
+
+
+% ============================================================
+% CHAPITRE 7 : CONCLUSION ET PERSPECTIVES
+% ============================================================
+\chapter{Conclusion et perspectives}
+\label{chap:conclusion}
+
+\section{Conclusion}
+
+Ce travail a présenté la conception et l'implémentation d'un système de \textit{Retrieval-Augmented Generation} (\rag{}) dédié au question-answering sur la documentation technique de Python 3.13, Scikit-learn 1.5 et LangChain. Le système a été développé dans le cadre d'un stage de fin d'études au sein de l'entreprise 3D Smart Factory.
+
+La méthodologie adoptée repose sur une approche empirique rigoureuse, fondée sur un benchmarking systématique de 108 configurations couvrant les dimensions de découpage documentaire, de vectorisation et de recherche d'information. Cette démarche, conforme aux recommandations de la littérature \citep{gao2024}, permet de justifier les choix techniques par des données quantitatives plutôt que par des hypothèses \textit{a priori}.
+
+Le pipeline proposé intègre l'ensemble des composants d'un système \rag{} --- de la collecte documentaire à l'évaluation --- dans une architecture modulaire, reproductible et extensible. Le choix de Mistral 7B Instruct comme composant génératif est motivé par son ratio performance/taille, son architecture efficiente et sa licence ouverte \citep{jiang2023mistral}.
+
+\section{Limites}
+
+Ce travail présente plusieurs limites qui méritent d'être mentionnées~:
+
+\begin{itemize}
+  \item \textbf{Taille du jeu d'évaluation}~: le jeu de 20 paires question-réponse, bien que construit manuellement avec soin, constitue un échantillon limité qui pourrait ne pas couvrir l'ensemble des cas d'usage et des niveaux de difficulté rencontrés en pratique.
+  \item \textbf{Périmètre documentaire}~: le système est évalué sur trois sources documentaires. La généralisation à d'autres documentations techniques nécessiterait une validation supplémentaire.
+  \item \textbf{Évaluation de la génération}~: l'évaluation automatique des réponses générées, même au moyen du cadre RAGAS, ne peut pas capturer l'ensemble des dimensions de la qualité perçue par un utilisateur humain (clarté, utilité pratique, complétude).
+  \item \textbf{Absence de \textit{fine-tuning}}~: le modèle génératif est utilisé sans adaptation au domaine spécifique de la documentation technique, ce qui pourrait limiter la qualité des réponses sur des questions très spécialisées.
+\end{itemize}
+
+\section{Perspectives}
+
+Plusieurs pistes d'amélioration et d'extension sont envisagées~:
+
+\begin{itemize}
+  \item \textbf{Enrichissement du jeu d'évaluation}~: augmenter la taille et la diversité du jeu de test, en incluant potentiellement des évaluations humaines.
+  \item \textbf{Re-ranking}~: intégrer un module de re-classement (\textit{re-ranking}) fondé sur un modèle \textit{cross-encoder} pour affiner le classement des passages retrouvés avant leur soumission au \llm{}.
+  \item \textbf{Query rewriting}~: implémenter un mécanisme de reformulation des requêtes pour améliorer la qualité de la recherche, en s'appuyant sur les techniques de \textit{query expansion} et de \textit{hypothetical document embeddings} (HyDE) \citep{gao2024}.
+  \item \textbf{Extension multi-documentaire}~: étendre le système à un ensemble plus large de documentations techniques pour évaluer sa capacité de généralisation.
+  \item \textbf{Interface utilisateur}~: développer une interface web permettant aux utilisateurs d'interagir avec le système de manière conviviale.
+  \item \textbf{Évaluation humaine}~: conduire une évaluation qualitative impliquant des développeurs professionnels pour mesurer l'utilité pratique du système.
+\end{itemize}
+
+
+% ============================================================
+% BIBLIOGRAPHIE
+% ============================================================
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

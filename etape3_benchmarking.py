@@ -903,15 +903,175 @@ def evaluate_hybrid(questions, chunks, sem_index, bm25_index, model, alpha=0.7, 
 
 
 # ============================================================
+# BENCHMARK COMPLET — GRID SEARCH (108 CONFIGURATIONS)
+# ============================================================
+
+def benchmark_full_grid(documents: List[Dict]) -> pd.DataFrame:
+    """
+    Évalue le produit cartésien complet de toutes les configurations.
+
+    Espace de recherche :
+      9 configs chunking × 3 modèles embedding × 4 méthodes recherche = 108
+
+    Justification littérature :
+    - Réf. [6] Gao et al. (2024) : les interactions entre chunk_size et
+      modèle d'embedding sont significatives — un grid search complet
+      est nécessaire pour identifier l'optimum global.
+
+    Optimisation : les embeddings sont pré-calculés par paire
+    (chunk_config, model), puis les 4 méthodes de recherche sont
+    évaluées sur le même index → 27 passes coûteuses + 108 évaluations.
+    """
+    from sentence_transformers import SentenceTransformer
+    import faiss
+
+    print("\n" + "=" * 65)
+    print("📊  GRID SEARCH COMPLET — 108 CONFIGURATIONS")
+    print("=" * 65)
+    print("\n  Produit cartésien : 9 chunking × 3 embeddings × 4 recherche")
+    print("  Réf. Gao et al. (2024) : évaluation exhaustive recommandée.\n")
+
+    chunk_configs = [
+        {"chunk_size": 256, "overlap": 30},
+        {"chunk_size": 256, "overlap": 50},
+        {"chunk_size": 256, "overlap": 80},
+        {"chunk_size": 400, "overlap": 30},
+        {"chunk_size": 400, "overlap": 50},
+        {"chunk_size": 400, "overlap": 80},
+        {"chunk_size": 512, "overlap": 30},
+        {"chunk_size": 512, "overlap": 50},
+        {"chunk_size": 512, "overlap": 80},
+    ]
+
+    model_names = [
+        "all-MiniLM-L6-v2",
+        "paraphrase-multilingual-MiniLM-L12-v2",
+        "all-mpnet-base-v2",
+    ]
+
+    search_methods = [
+        {"name": "Sémantique pure", "type": "semantic"},
+        {"name": "BM25 pure", "type": "bm25"},
+        {"name": "Hybride α=0.7", "type": "hybrid", "alpha": 0.7},
+        {"name": "Hybride α=0.5", "type": "hybrid", "alpha": 0.5},
+    ]
+
+    total_configs = len(chunk_configs) * len(model_names) * len(search_methods)
+    results = []
+    config_count = 0
+
+    for model_name in model_names:
+        print(f"\n  🧠 Chargement modèle : {model_name}...")
+        try:
+            model = SentenceTransformer(model_name)
+        except Exception as e:
+            logger.warning(f"Impossible de charger {model_name}: {e}")
+            continue
+
+        for cfg in chunk_configs:
+            # ── Chunking ──
+            chunker = DocumentChunker(cfg["chunk_size"], cfg["overlap"])
+            all_chunks = []
+            for doc in documents:
+                all_chunks.extend(chunker.chunk_document(doc))
+
+            if len(all_chunks) < 10:
+                logger.warning(f"Config {cfg}: seulement {len(all_chunks)} chunks, ignoré")
+                config_count += len(search_methods)
+                continue
+
+            texts = [c["chunk_text"] for c in all_chunks]
+
+            # ── Embedding (coûteux — une seule fois par paire) ──
+            embeddings = model.encode(
+                texts, batch_size=64,
+                normalize_embeddings=True, show_progress_bar=False
+            )
+
+            # ── Index FAISS ──
+            sem_index = faiss.IndexFlatIP(embeddings.shape[1])
+            sem_index.add(embeddings.astype(np.float32))
+
+            # ── Index BM25 ──
+            bm25_index = SimpleBM25(texts)
+
+            # ── Évaluer les 4 méthodes de recherche ──
+            for search_cfg in search_methods:
+                config_count += 1
+                search_type = search_cfg["type"]
+
+                if search_type == "semantic":
+                    metrics = evaluate_retrieval(
+                        EVAL_QUESTIONS, all_chunks, sem_index, model, k=5
+                    )
+                elif search_type == "bm25":
+                    metrics = evaluate_bm25(
+                        EVAL_QUESTIONS, all_chunks, bm25_index, k=5
+                    )
+                elif search_type == "hybrid":
+                    metrics = evaluate_hybrid(
+                        EVAL_QUESTIONS, all_chunks, sem_index, bm25_index,
+                        model, alpha=search_cfg["alpha"], k=5
+                    )
+                else:
+                    continue
+
+                results.append({
+                    "chunk_size": cfg["chunk_size"],
+                    "overlap": cfg["overlap"],
+                    "model": model_name,
+                    "search_method": search_cfg["name"],
+                    "n_chunks": len(all_chunks),
+                    "embedding_dim": embeddings.shape[1],
+                    "hit_rate@5": metrics["hit_rate"],
+                    "mrr@5": metrics["mrr"],
+                    "precision@5": metrics["precision_at_k"],
+                })
+
+                print(f"  [{config_count:>3}/{total_configs}] "
+                      f"chunk={cfg['chunk_size']}/{cfg['overlap']}  "
+                      f"model={model_name.split('/')[-1][:15]:<15}  "
+                      f"search={search_cfg['name']:<20}  "
+                      f"MRR={metrics['mrr']:.3f}  HR={metrics['hit_rate']:.3f}")
+
+            # Libérer l'index pour cette config
+            del sem_index, bm25_index
+
+        # Libérer le modèle
+        del model
+
+    df = pd.DataFrame(results)
+    df.to_csv(BENCHMARK_DIR / "benchmark_full_grid.csv", index=False)
+
+    if len(df) > 0:
+        best = df.loc[df["mrr@5"].idxmax()]
+        print(f"\n  {'=' * 60}")
+        print(f"  🏆 CONFIGURATION OPTIMALE GLOBALE :")
+        print(f"     Chunking   : taille={int(best['chunk_size'])}, "
+              f"overlap={int(best['overlap'])}")
+        print(f"     Embedding  : {best['model']}")
+        print(f"     Recherche  : {best['search_method']}")
+        print(f"     MRR@5      : {best['mrr@5']:.4f}")
+        print(f"     HR@5       : {best['hit_rate@5']:.4f}")
+        print(f"     P@5        : {best['precision@5']:.4f}")
+        print(f"  {'=' * 60}")
+
+    return df
+
+
+# ============================================================
 # RAPPORT FINAL
 # ============================================================
 
-def generate_report(df_chunk, df_embed, df_search, elapsed):
+def generate_report(df_chunk, df_embed, df_search, df_grid, elapsed):
     """Génère le rapport consolidé du benchmarking."""
     report = {
         "timestamp": datetime.now().isoformat(),
         "elapsed_seconds": round(elapsed, 1),
         "n_eval_questions": len(EVAL_QUESTIONS),
+        "methodology": "full_grid_search" if len(df_grid) > 0 else "OFAT",
+        "n_configurations_tested": len(df_grid) if len(df_grid) > 0 else (
+            len(df_chunk) + len(df_embed) + len(df_search)),
         "literature_references": {
             "RAG": "Lewis et al. (2020) - Retrieval-Augmented Generation",
             "SBERT": "Reimers & Gurevych (2019) - Sentence-BERT",
@@ -924,33 +1084,63 @@ def generate_report(df_chunk, df_embed, df_search, elapsed):
         "recommendations": {},
     }
 
-    # Recommandations basées sur les résultats
-    if len(df_chunk) > 0:
-        best_chunk = df_chunk.loc[df_chunk["mrr@5"].idxmax()]
+    # Recommandations depuis le grid search (prioritaire)
+    if len(df_grid) > 0:
+        best_global = df_grid.loc[df_grid["mrr@5"].idxmax()]
         report["recommendations"]["chunking"] = {
-            "chunk_size": int(best_chunk["chunk_size"]),
-            "overlap": int(best_chunk["overlap"]),
-            "mrr": float(best_chunk["mrr@5"]),
-            "justification": "Meilleur MRR@5 sur le jeu de test de 20 questions."
+            "chunk_size": int(best_global["chunk_size"]),
+            "overlap": int(best_global["overlap"]),
+            "mrr": float(best_global["mrr@5"]),
+            "justification": (
+                f"Configuration optimale identifiée par grid search exhaustif "
+                f"sur {len(df_grid)} configurations. "
+                f"Réf. Gao et al. (2024)."
+            ),
         }
-
-    if len(df_embed) > 0:
-        best_embed = df_embed.loc[df_embed["mrr@5"].idxmax()]
         report["recommendations"]["embedding_model"] = {
-            "model": best_embed["model"],
-            "mrr": float(best_embed["mrr@5"]),
-            "justification": "Meilleur MRR@5. "
-                "Réf. Reimers & Gurevych (2019) pour le framework Sentence-BERT."
+            "model": best_global["model"],
+            "mrr": float(best_global["mrr@5"]),
+            "justification": (
+                f"Meilleur MRR@5 en combinaison avec chunk_size="
+                f"{int(best_global['chunk_size'])} et {best_global['search_method']}."
+            ),
         }
-
-    if len(df_search) > 0:
-        best_search = df_search.loc[df_search["mrr@5"].idxmax()]
         report["recommendations"]["search_method"] = {
-            "method": best_search["method"],
-            "mrr": float(best_search["mrr@5"]),
-            "justification": "Meilleur MRR@5. "
-                "Réf. Gao et al. (2024) confirme la supériorité de la recherche hybride."
+            "method": best_global["search_method"],
+            "mrr": float(best_global["mrr@5"]),
+            "justification": (
+                f"Meilleur MRR@5 en combinaison optimale globale. "
+                f"Réf. Gao et al. (2024)."
+            ),
         }
+    else:
+        # Fallback sur les benchmarks OFAT individuels
+        if len(df_chunk) > 0:
+            best_chunk = df_chunk.loc[df_chunk["mrr@5"].idxmax()]
+            report["recommendations"]["chunking"] = {
+                "chunk_size": int(best_chunk["chunk_size"]),
+                "overlap": int(best_chunk["overlap"]),
+                "mrr": float(best_chunk["mrr@5"]),
+                "justification": "Meilleur MRR@5 sur le jeu de test."
+            }
+
+        if len(df_embed) > 0:
+            best_embed = df_embed.loc[df_embed["mrr@5"].idxmax()]
+            report["recommendations"]["embedding_model"] = {
+                "model": best_embed["model"],
+                "mrr": float(best_embed["mrr@5"]),
+                "justification": "Meilleur MRR@5. "
+                    "Réf. Reimers & Gurevych (2019)."
+            }
+
+        if len(df_search) > 0:
+            best_search = df_search.loc[df_search["mrr@5"].idxmax()]
+            report["recommendations"]["search_method"] = {
+                "method": best_search["method"],
+                "mrr": float(best_search["mrr@5"]),
+                "justification": "Meilleur MRR@5. "
+                    "Réf. Gao et al. (2024)."
+            }
 
     with open(BENCHMARK_DIR / "benchmark_report.json", 'w', encoding='utf-8') as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
@@ -1007,21 +1197,24 @@ def main():
         sys.exit(1)
     print(f"  → {len(documents)} documents chargés.\n")
 
-    # Benchmark 1 : Chunking
+    # Benchmarks individuels (diagnostic rapide)
     df_chunk = benchmark_chunking(documents)
-
-    # Benchmark 2 : Embeddings
     df_embed = benchmark_embeddings(documents)
-
-    # Benchmark 3 : Méthode de recherche
     df_search = benchmark_search(documents)
+
+    # Grid search complet (108 configurations)
+    print("\n" + "─" * 50)
+    print("🔬  Lancement du grid search complet (108 configs)")
+    print("─" * 50)
+    df_grid = benchmark_full_grid(documents)
 
     # Rapport
     elapsed = (datetime.now() - start).total_seconds()
-    generate_report(df_chunk, df_embed, df_search, elapsed)
+    generate_report(df_chunk, df_embed, df_search, df_grid, elapsed)
 
     print("\n" + "=" * 65)
     print("🎉  Étape 3 terminée !")
+    print(f"    → {len(df_grid)} configurations évaluées (grid search)")
     print(f"    → Benchmarks sauvegardés dans {BENCHMARK_DIR}")
     print(f"    → Utilisez les recommandations pour l'étape 4 (indexation).")
     print(f"    ⏱️  Durée totale : {elapsed/60:.1f} minutes")
