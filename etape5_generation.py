@@ -17,6 +17,7 @@ et propose un repli sur Ollama pour les environnements CPU.
 
 import json
 import faiss
+import sys
 import torch
 import requests
 import numpy as np
@@ -25,6 +26,13 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from sentence_transformers import SentenceTransformer
+
+# Fix Windows UnicodeEncodeError : forcer l'encodage UTF-8 sur stdout
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ('utf-8', 'utf8'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass  # Python < 3.7 : pas disponible, on continue
 
 from config import (PROCESSED_DIR, VECTORSTORE_DIR, BENCHMARK_DIR, LLM_CONFIG, logger)
 from core.search import SimpleBM25
@@ -490,11 +498,11 @@ def main():
     """
     Point d'entrée principal de l'étape 5.
 
-    Pipeline complet : chargement de l'index → détection du LLM →
-    démonstration sur 3 questions → mode interactif.
+    Pipeline complet : chargement de l'index -> détection du LLM ->
+    démonstration sur 3 questions -> mode interactif (si terminal disponible).
     """
     print("\n" + "=" * 65)
-    print("🤖  ÉTAPE 5 — RECHERCHE ET GÉNÉRATION RAG")
+    print("[ETAPE 5] RECHERCHE ET GENERATION RAG")
     print("=" * 65)
     print("\n  Ce module complète le pipeline RAG en ajoutant la génération")
     print("  de réponses via un LLM (Mistral 7B Instruct).")
@@ -551,9 +559,19 @@ def main():
             logger.error(f"Erreur lors de la démo pour '{q}': {e}")
 
     print("\n" + "=" * 65)
-    print("🎉  Étape 5 prête — Lancement du mode interactif")
+    print("[OK] Etape 5 prete")
     print("=" * 65)
-    interactive_mode(pipeline)
+
+    # Mode interactif : uniquement si un terminal est disponible.
+    # En environnement non-interactif (Kaggle kernel, pipeline CI, etc.)
+    # sys.stdin.isatty() retourne False => on n'essaie pas de lire l'input
+    # ce qui eviterait de bloquer indefiniment.
+    if sys.stdin.isatty():
+        interactive_mode(pipeline)
+    else:
+        print("\n  [INFO] Mode non-interactif detecte (Kaggle / CI).")
+        print("  Le mode interactif est desactive pour eviter un blocage.")
+        print("  Utilisez batch_mode() ou appelez pipeline.answer(question) directement.")
 
 
 if __name__ == "__main__":

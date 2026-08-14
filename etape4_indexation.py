@@ -38,6 +38,13 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List
 
+# Fix Windows UnicodeEncodeError : forcer l'encodage UTF-8 sur stdout
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ('utf-8', 'utf8'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass  # Python < 3.7 : pas disponible, on continue
+
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -383,7 +390,7 @@ def generate_report(chunks: List[Dict], embeddings: np.ndarray,
 
 def main():
     print("=" * 65)
-    print("🔗  ÉTAPE 4 — CHUNKING ET INDEXATION VECTORIELLE")
+    print("[ETAPE 4] CHUNKING ET INDEXATION VECTORIELLE")
     print("=" * 65)
 
     start_time = datetime.now()
@@ -395,15 +402,15 @@ def main():
     VECTORSTORE_DIR.mkdir(parents=True, exist_ok=True)
 
     # 1. Charger la configuration (depuis benchmark ou par défaut)
-    print("\n" + "─" * 50)
-    print("⚙️   1/5 — Chargement de la configuration")
-    print("─" * 50)
+    print("\n" + "-" * 50)
+    print("  1/5 -- Chargement de la configuration")
+    print("-" * 50)
     config = load_config_from_benchmark()
 
     # 2. Charger les documents nettoyés (sortie étape 2)
-    print("\n" + "─" * 50)
-    print("📂  2/5 — Chargement des documents nettoyés")
-    print("─" * 50)
+    print("\n" + "-" * 50)
+    print("  2/5 -- Chargement des documents nettoyes")
+    print("-" * 50)
     documents = load_cleaned_documents()
 
     if not documents:
@@ -413,9 +420,9 @@ def main():
         sys.exit(1)
 
     # 3. Chunking
-    print("\n" + "─" * 50)
-    print("✂️   3/5 — Chunking des documents")
-    print("─" * 50)
+    print("\n" + "-" * 50)
+    print("  3/5 -- Chunking des documents")
+    print("-" * 50)
     chunker = DocumentChunker(
         chunk_size=config["chunk_size_tokens"],
         chunk_overlap=config["chunk_overlap_tokens"],
@@ -442,15 +449,15 @@ def main():
         sys.exit(1)
 
     # 4. Embedding
-    print("\n" + "─" * 50)
-    print("🧠  4/5 — Création des embeddings")
-    print("─" * 50)
+    print("\n" + "-" * 50)
+    print("  4/5 -- Creation des embeddings")
+    print("-" * 50)
     embeddings = create_embeddings(all_chunks, config)
 
     # 5. Indexation FAISS
-    print("\n" + "─" * 50)
-    print("📦  5/5 — Construction et sauvegarde de l'index FAISS")
-    print("─" * 50)
+    print("\n" + "-" * 50)
+    print("  5/5 -- Construction et sauvegarde de l'index FAISS")
+    print("-" * 50)
     index = build_faiss_index(embeddings)
     save_index(index, all_chunks)
 
@@ -462,9 +469,9 @@ def main():
     generate_report(all_chunks, embeddings, config, elapsed)
 
     print("\n" + "=" * 65)
-    print("🎉  Étape 4 terminée !")
-    print(f"    → {len(all_chunks)} chunks indexés dans FAISS")
-    print(f"    → Index : {FAISS_INDEX_PATH}")
+    print("[OK] Etape 4 terminee !")
+    print(f"     -> {len(all_chunks)} chunks indexes dans FAISS")
+    print(f"     -> Index : {FAISS_INDEX_PATH}")
     print("=" * 65 + "\n")
 
 

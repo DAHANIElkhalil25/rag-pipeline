@@ -14,6 +14,7 @@ Les métriques calculées sont :
 """
 
 import os
+import sys
 import time
 import json
 import csv
@@ -22,6 +23,13 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from numpy.linalg import norm
+
+# Fix Windows UnicodeEncodeError : forcer l'encodage UTF-8 sur stdout
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ('utf-8', 'utf8'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass  # Python < 3.7 : pas disponible, on continue
 
 from config import (
     PROCESSED_DIR,
@@ -375,8 +383,9 @@ class RAGASEvaluator:
 
         for claim in claims:
             prompt_verify = (
-                "Étant donné le contexte suivant et une affirmation de référence, vérifie si le contexte contient des informations supportant cette affirmation.\n"
-                "Réponds UNIQUEMENT par un objet JSON avec une clé 'supported' (booléen true/false).\n\n"
+                "Etant donne le contexte suivant et une affirmation de reference, "
+                "verifie si le contexte contient des informations supportant cette affirmation.\n"
+                "Reponds UNIQUEMENT par un objet JSON avec une cle 'supported' (booleen true/false).\n\n"
                 f"Contexte : {contexts_str}\n\n"
                 f"Affirmation : {claim}\n\n"
                 "Format attendu:\n"
@@ -395,13 +404,34 @@ class RAGASEvaluator:
     def evaluate_single(self, question: str, reference_answer: str) -> Dict[str, Any]:
         """
         Exécute la pipeline RAG et calcule toutes les métriques RAGAS pour une paire QA.
+
+        Correction bug critique (v1.1) :
+        - L'ancienne implémentation appelait self.pipeline.generate_answer() qui n'existe pas.
+          La méthode correcte est pipeline.answer() mais elle ne retourne pas le texte brut des chunks.
+        - On utilise maintenant pipeline.retrieve() pour récupérer les chunks avec leur texte (chunk_text),
+          puis pipeline.build_prompt() + pipeline.generate() pour générer la réponse.
+          Cela garantit d'avoir à la fois la réponse générée ET le texte des contextes pour les métriques.
         """
-        logger.info(f"Évaluation de la question : '{question}'")
+        logger.info(f"Evaluation de la question : '{question}'")
+        answer = ""
+        contexts = []  # Textes bruts des chunks recupérés
         try:
-            # Génération de la réponse via la pipeline RAG
-            rag_result = self.pipeline.generate_answer(question)
-            answer = rag_result["answer"]
-            contexts = [doc["content"] for doc in rag_result["source_documents"]]
+            # 1. Retrieval : récupérer les k chunks pertinents avec leur texte
+            k = LLM_CONFIG.get("top_k_retrieval", 5)
+            retrieved_chunks = self.pipeline.retrieve(question, k=k)
+
+            # Extraire le texte brut de chaque chunk pour les métriques de contexte
+            # La clé correcte dans les chunks est 'chunk_text' (pas 'content')
+            contexts = [chunk.get("chunk_text", "") for chunk in retrieved_chunks
+                        if chunk.get("chunk_text", "").strip()]
+
+            # 2. Génération : construire le prompt et générer la réponse
+            if retrieved_chunks:
+                prompt = self.pipeline.build_prompt(question, retrieved_chunks)
+                answer = self.pipeline.generate(prompt)
+            else:
+                answer = "Aucun document pertinent trouve pour répondre à cette question."
+
         except Exception as e:
             logger.error(f"Erreur de la pipeline pour la question '{question}' : {e}")
             answer = ""
@@ -413,7 +443,7 @@ class RAGASEvaluator:
             "context_precision": self.evaluate_context_precision(question, contexts, reference_answer),
             "context_recall": self.evaluate_context_recall(reference_answer, contexts)
         }
-        
+
         return {
             "question": question,
             "generated_answer": answer,
