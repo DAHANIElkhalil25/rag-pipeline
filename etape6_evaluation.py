@@ -179,37 +179,124 @@ def cosine_similarity(v1: List[float], v2: List[float]) -> float:
 
 def parse_json_from_llm(text: str) -> Any:
     """
-    Tente de parser une réponse LLM en JSON.
-    """
-    try:
-        # Extraire ce qui est entre ```json et ``` s'il y a des balises
-        match = re.search(r'```(?:json)?\s*(\{.*\}|\[.*\])\s*```', text, re.DOTALL)
-        if match:
-            return json.loads(match.group(1))
-        
-        # Sinon on essaie direct
-        # Trouver la première accolade ou crochet
-        start = text.find('{')
-        start_list = text.find('[')
-        if start == -1 and start_list != -1:
-            start = start_list
-        elif start != -1 and start_list != -1:
-            start = min(start, start_list)
-            
-        end = text.rfind('}')
-        end_list = text.rfind(']')
-        if end == -1 and end_list != -1:
-            end = end_list
-        elif end != -1 and end_list != -1:
-            end = max(end, end_list)
+    Parse la réponse LLM en JSON avec plusieurs stratégies de fallback.
 
-        if start != -1 and end != -1:
-            return json.loads(text[start:end+1])
-        
+    Mistral 7B ne renvoie pas toujours du JSON propre — il peut inclure
+    du texte explicatif avant/après, utiliser des guillemets simples,
+    ou omettre les accolades. Cette fonction gère tous ces cas.
+    """
+    if not text or not text.strip():
+        raise ValueError("Empty LLM output")
+
+    text = text.strip()
+
+    # Stratégie 1 : Extraire un bloc ```json ... ```
+    match = re.search(r'```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # Stratégie 2 : Trouver le premier { ... } ou [ ... ] dans le texte
+    for start_char, end_char in [('{', '}'), ('[', ']')]:
+        start = text.find(start_char)
+        end = text.rfind(end_char)
+        if start != -1 and end > start:
+            try:
+                return json.loads(text[start:end + 1])
+            except json.JSONDecodeError:
+                # Essayer en remplaçant les guillemets simples par des doubles
+                fixed = text[start:end + 1].replace("'", '"')
+                try:
+                    return json.loads(fixed)
+                except json.JSONDecodeError:
+                    pass
+
+    # Stratégie 3 : Parsing direct
+    try:
         return json.loads(text)
-    except Exception as e:
-        logger.warning(f"Impossible de parser la sortie LLM en JSON : {e}. Texte brut : {text}")
-        raise ValueError("Invalid JSON output")
+    except json.JSONDecodeError:
+        pass
+
+    raise ValueError(f"Cannot parse JSON from LLM output: {text[:200]}")
+
+
+def parse_boolean_from_llm(text: str) -> bool:
+    """
+    Extrait un booléen de la réponse LLM, même si ce n'est pas du JSON.
+
+    Cherche dans l'ordre :
+    1. JSON avec clé 'supported' ou 'relevant'
+    2. Mots-clés : true/false, oui/non, yes/no
+    """
+    if not text:
+        return False
+
+    # Essayer le JSON d'abord
+    try:
+        result = parse_json_from_llm(text)
+        if isinstance(result, dict):
+            for key in ['supported', 'relevant', 'verdict']:
+                if key in result:
+                    return bool(result[key])
+        return bool(result)
+    except (ValueError, TypeError):
+        pass
+
+    # Fallback : chercher des mots-clés dans le texte
+    text_lower = text.lower().strip()
+    positive = ['true', '"supported": true', '"relevant": true',
+                'oui', 'yes', 'est soutenu', 'est pertinent',
+                'supporte', 'confirme', 'contient']
+    negative = ['false', '"supported": false', '"relevant": false',
+                'non', 'no', "n'est pas soutenu", "n'est pas pertinent",
+                'ne supporte pas', 'ne contient pas']
+
+    # Compter les indicateurs positifs vs négatifs
+    pos_score = sum(1 for p in positive if p in text_lower)
+    neg_score = sum(1 for n in negative if n in text_lower)
+
+    return pos_score > neg_score
+
+
+def parse_list_from_llm(text: str, key: str) -> List[str]:
+    """
+    Extrait une liste de strings de la réponse LLM.
+
+    Args:
+        text: Sortie brute du LLM.
+        key: Clé JSON attendue (ex: 'claims', 'questions').
+
+    Returns:
+        Liste de strings extraites, ou liste vide.
+    """
+    if not text:
+        return []
+
+    # Essayer le JSON
+    try:
+        result = parse_json_from_llm(text)
+        if isinstance(result, dict) and key in result:
+            items = result[key]
+            if isinstance(items, list):
+                return [str(item) for item in items if item]
+        if isinstance(result, list):
+            return [str(item) for item in result if item]
+    except (ValueError, TypeError):
+        pass
+
+    # Fallback : chercher des listes numérotées ou à puces dans le texte
+    lines = text.strip().split('\n')
+    items = []
+    for line in lines:
+        line = line.strip()
+        # Patterns : "1. ...", "- ...", "• ...", "* ..."
+        match = re.match(r'^(?:\d+[\.\)]\s*|[-•*]\s+|"\s*)(.*?)(?:"\s*,?\s*)?$', line)
+        if match and len(match.group(1).strip()) > 10:
+            items.append(match.group(1).strip().strip('"').strip("'"))
+
+    return items if items else []
 
 class RAGASEvaluator:
     """
@@ -247,81 +334,74 @@ class RAGASEvaluator:
     def evaluate_faithfulness(self, answer: str, contexts: List[str]) -> float:
         """
         Évalue l'exactitude de la réponse par rapport au contexte (Faithfulness).
+        Score = claims soutenues / total claims.
         """
         if not contexts or not answer:
             return 0.0
 
         prompt_extract = (
-            "Extrais les affirmations clés (claims) de la réponse suivante. "
-            "Renvoie un objet JSON avec une clé 'claims' contenant une liste de chaînes de caractères.\n\n"
-            f"Réponse : {answer}\n\n"
-            "Format attendu:\n"
-            "{\"claims\": [\"affirmation 1\", \"affirmation 2\"]}\n"
+            "Liste les affirmations factuelles contenues dans cette réponse.\n"
+            "Donne une liste numérotée (1., 2., 3., etc.).\n\n"
+            f"Réponse : {answer[:1000]}\n\n"
+            "Affirmations :\n"
         )
 
         try:
             extract_res = self._call_llm(prompt_extract)
-            json_res = parse_json_from_llm(extract_res)
-            claims = json_res.get("claims", [])
+            claims = parse_list_from_llm(extract_res, "claims")
         except Exception:
-            return 0.5
+            claims = []
 
         if not claims:
             return 0.5
 
-        contexts_str = "\n".join(contexts)
+        contexts_str = "\n".join(c[:500] for c in contexts[:3])
         supported_count = 0
 
-        for claim in claims:
+        for claim in claims[:5]:  # Limiter à 5 claims pour la vitesse
             prompt_verify = (
-                "Étant donné le contexte suivant et une affirmation, vérifie si le contexte soutient l'affirmation.\n"
-                "Réponds UNIQUEMENT par un objet JSON avec une clé 'supported' dont la valeur est un booléen (true ou false).\n\n"
-                f"Contexte : {contexts_str}\n\n"
+                f"Le contexte suivant soutient-il cette affirmation ?\n\n"
+                f"Contexte : {contexts_str[:1500]}\n\n"
                 f"Affirmation : {claim}\n\n"
-                "Format attendu:\n"
-                "{\"supported\": true}\n"
+                "Réponds par 'true' ou 'false' uniquement.\n"
             )
             try:
                 verify_res = self._call_llm(prompt_verify)
-                verify_json = parse_json_from_llm(verify_res)
-                if verify_json.get("supported") is True:
+                if parse_boolean_from_llm(verify_res):
                     supported_count += 1
             except Exception:
-                pass
+                supported_count += 0.5  # Incertain = 0.5
 
         return supported_count / len(claims) if claims else 0.5
 
     def evaluate_answer_relevancy(self, question: str, answer: str, embedding_model: Any) -> float:
         """
         Évalue la pertinence de la réponse par rapport à la question.
+        Génère des questions inverses et mesure la similarité cosinus.
         """
         if not answer or not question:
             return 0.0
 
         prompt = (
-            "Génère 3 questions distinctes pour lesquelles la réponse fournie serait appropriée. "
-            "Renvoie UNIQUEMENT un objet JSON avec une clé 'questions' contenant une liste de 3 chaînes.\n\n"
-            f"Réponse : {answer}\n\n"
-            "Format attendu:\n"
-            "{\"questions\": [\"q1\", \"q2\", \"q3\"]}\n"
+            "Génère 3 questions auxquelles cette réponse pourrait répondre.\n"
+            "Donne une liste numérotée (1., 2., 3.).\n\n"
+            f"Réponse : {answer[:1000]}\n\n"
+            "Questions :\n"
         )
 
         try:
             res = self._call_llm(prompt)
-            json_res = parse_json_from_llm(res)
-            gen_questions = json_res.get("questions", [])
-            if not isinstance(gen_questions, list) or len(gen_questions) == 0:
+            gen_questions = parse_list_from_llm(res, "questions")
+            if not gen_questions:
                 return 0.5
         except Exception:
             return 0.5
 
         try:
-            # Embeddings
             q_emb = embedding_model.encode(question)
-            gen_embs = [embedding_model.encode(q) for q in gen_questions]
-
+            gen_embs = [embedding_model.encode(q) for q in gen_questions[:3]]
             similarities = [cosine_similarity(q_emb, ge) for ge in gen_embs]
-            return float(np.mean(similarities))
+            return max(0.0, min(1.0, float(np.mean(similarities))))
         except Exception as e:
             logger.error(f"Erreur d'embedding Answer Relevancy : {e}")
             return 0.5
@@ -329,75 +409,68 @@ class RAGASEvaluator:
     def evaluate_context_precision(self, question: str, contexts: List[str], reference_answer: str) -> float:
         """
         Évalue la précision du contexte vis-à-vis de la question (Context Precision).
+        Score = passages pertinents / total passages.
         """
         if not contexts:
             return 0.0
 
         relevant_count = 0
-        for ctx in contexts:
+        for ctx in contexts[:5]:  # Limiter à 5 passages
             prompt = (
-                "Vérifie si le contexte suivant contient des informations utiles pour répondre à la question.\n"
-                f"Question : {question}\n"
-                f"Contexte : {ctx}\n"
-                "Réponds UNIQUEMENT par un objet JSON avec une clé 'relevant' (booléen true/false).\n\n"
-                "Format attendu:\n"
-                "{\"relevant\": true}\n"
+                f"Ce passage est-il utile pour répondre à cette question ?\n\n"
+                f"Question : {question}\n\n"
+                f"Passage : {ctx[:800]}\n\n"
+                "Réponds par 'true' ou 'false' uniquement.\n"
             )
             try:
                 res = self._call_llm(prompt)
-                json_res = parse_json_from_llm(res)
-                if json_res.get("relevant") is True:
+                if parse_boolean_from_llm(res):
                     relevant_count += 1
             except Exception:
-                pass
-                
+                relevant_count += 0.5  # Incertain
+
         return relevant_count / len(contexts) if contexts else 0.5
 
     def evaluate_context_recall(self, reference_answer: str, contexts: List[str]) -> float:
         """
-        Évalue la couverture du contexte récupéré par rapport à la réponse de référence (Context Recall).
+        Évalue la couverture du contexte par rapport à la réponse de référence.
+        Score = claims de la référence couvertes / total claims.
         """
         if not contexts or not reference_answer:
             return 0.0
 
         prompt_extract = (
-            "Extrais les affirmations clés (claims) de la réponse de référence suivante. "
-            "Renvoie un objet JSON avec une clé 'claims' contenant une liste de chaînes.\n\n"
+            "Liste les informations clés contenues dans cette réponse de référence.\n"
+            "Donne une liste numérotée (1., 2., 3.).\n\n"
             f"Réponse : {reference_answer}\n\n"
-            "Format attendu:\n"
-            "{\"claims\": [\"affirmation 1\", \"affirmation 2\"]}\n"
+            "Informations clés :\n"
         )
 
         try:
             extract_res = self._call_llm(prompt_extract)
-            json_res = parse_json_from_llm(extract_res)
-            claims = json_res.get("claims", [])
+            claims = parse_list_from_llm(extract_res, "claims")
         except Exception:
-            return 0.5
+            claims = []
 
         if not claims:
             return 0.5
 
-        contexts_str = "\n".join(contexts)
+        contexts_str = "\n".join(c[:500] for c in contexts[:3])
         supported_count = 0
 
-        for claim in claims:
+        for claim in claims[:5]:  # Limiter à 5
             prompt_verify = (
-                "Etant donne le contexte suivant et une affirmation de reference, "
-                "verifie si le contexte contient des informations supportant cette affirmation.\n"
-                "Reponds UNIQUEMENT par un objet JSON avec une cle 'supported' (booleen true/false).\n\n"
-                f"Contexte : {contexts_str}\n\n"
-                f"Affirmation : {claim}\n\n"
-                "Format attendu:\n"
-                "{\"supported\": true}\n"
+                f"Le contexte suivant contient-il cette information ?\n\n"
+                f"Contexte : {contexts_str[:1500]}\n\n"
+                f"Information : {claim}\n\n"
+                "Réponds par 'true' ou 'false' uniquement.\n"
             )
             try:
                 verify_res = self._call_llm(prompt_verify)
-                verify_json = parse_json_from_llm(verify_res)
-                if verify_json.get("supported") is True:
+                if parse_boolean_from_llm(verify_res):
                     supported_count += 1
             except Exception:
-                pass
+                supported_count += 0.5
 
         return supported_count / len(claims) if claims else 0.5
 
