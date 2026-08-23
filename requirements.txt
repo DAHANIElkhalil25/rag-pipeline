@@ -19,8 +19,10 @@ accelerate>=0.25.0
 bitsandbytes>=0.41.0
 requests>=2.31.0
 
-# === Évaluation (étape 6) ===
-# ragas>=0.1.0  # optionnel — évaluation native RAGAS
+# === Évaluation et interface (étape 6) ===
+# Step 6 currently implements transparent local Ragas-inspired metrics.
+# Install official Ragas separately only when its adapters are configured.
+gradio>=4.44.0
 
 # === Tests ===
 pytest>=7.0.0

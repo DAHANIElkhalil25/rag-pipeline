@@ -142,9 +142,12 @@ class HuggingFaceClient(LLMClient):
         self.model_name = model_name
         self.model = None
         self.tokenizer = None
+        self._load_error = None
         
     def _load_model(self) -> None:
         """Charge le modèle et le tokenizer de manière paresseuse."""
+        if self._load_error is not None:
+            raise RuntimeError(f"Le modèle HF n'a pas pu être chargé : {self._load_error}")
         if self.model is None:
             logger.info(f"Chargement du modèle HF {self.model_name} en 4-bit...")
             quantization_config = BitsAndBytesConfig(
@@ -154,13 +157,24 @@ class HuggingFaceClient(LLMClient):
                 bnb_4bit_quant_type="nf4"
             )
             
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                quantization_config=quantization_config,
-                device_map="auto"
-            )
-            logger.info("Modèle HF chargé avec succès.")
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                if self.tokenizer.pad_token is None:
+                    self.tokenizer.pad_token = self.tokenizer.eos_token
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    quantization_config=quantization_config,
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    low_cpu_mem_usage=True,
+                )
+                self.model.eval()
+                logger.info("Modèle HF chargé avec succès.")
+            except Exception as exc:
+                # Do not retry a failed load for every evaluation sample. This
+                # was the source of repeated OOMs in the old Kaggle notebook.
+                self._load_error = exc
+                raise
             
     def generate(self, prompt: str) -> str:
         """
@@ -177,19 +191,38 @@ class HuggingFaceClient(LLMClient):
         # Template Instruct pour Mistral : [INST] prompt [/INST]
         formatted_prompt = f"[INST] {prompt} [/INST]"
         
-        inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to("cuda" if torch.cuda.is_available() else "cpu")
-        
-        with torch.no_grad():
-            outputs = self.model.generate(
+        inputs = self.tokenizer(
+            formatted_prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=LLM_CONFIG.get("max_input_tokens", 3072),
+        )
+        input_device = next(self.model.parameters()).device
+        inputs = {name: value.to(input_device) for name, value in inputs.items()}
+
+        with torch.inference_mode():
+            generation_kwargs = {
                 **inputs,
-                max_new_tokens=LLM_CONFIG["max_new_tokens"],
-                temperature=LLM_CONFIG["temperature"],
-                top_p=LLM_CONFIG["top_p"],
-                repetition_penalty=LLM_CONFIG["repetition_penalty"],
-                do_sample=LLM_CONFIG["temperature"] > 0
-            )
+                "max_new_tokens": LLM_CONFIG["max_new_tokens"],
+                "repetition_penalty": LLM_CONFIG["repetition_penalty"],
+                "pad_token_id": self.tokenizer.pad_token_id,
+                "eos_token_id": self.tokenizer.eos_token_id,
+                "use_cache": True,
+            }
+            if LLM_CONFIG.get("temperature", 0.0) > 0:
+                generation_kwargs.update({
+                    "temperature": LLM_CONFIG["temperature"],
+                    "top_p": LLM_CONFIG["top_p"],
+                    "do_sample": True,
+                })
+            else:
+                generation_kwargs["do_sample"] = False
+            outputs = self.model.generate(**generation_kwargs)
             
-        generated_text = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+        generated_text = self.tokenizer.decode(
+            outputs[0][inputs["input_ids"].shape[1]:],
+            skip_special_tokens=True,
+        )
         return generated_text.strip()
 
 class OllamaClient(LLMClient):
@@ -232,13 +265,17 @@ class OllamaClient(LLMClient):
         }
         
         try:
-            response = requests.post(f"{self.url}/api/generate", json=payload)
+            response = requests.post(
+                f"{self.url}/api/generate",
+                json=payload,
+                timeout=LLM_CONFIG.get("request_timeout_seconds", 180),
+            )
             response.raise_for_status()
             data = response.json()
             return data.get("response", "").strip()
         except requests.exceptions.RequestException as e:
             logger.error(f"Erreur lors de la requête vers Ollama : {e}")
-            return "Erreur : Impossible de contacter le modèle local."
+            raise RuntimeError(f"Impossible de contacter Ollama : {e}") from e
 
 def auto_detect_client() -> LLMClient:
     """
@@ -370,19 +407,23 @@ class RAGPipeline:
         for i, ctx in enumerate(contexts):
             source = ctx.get("doc_title", ctx.get("doc_source", f"Document {i+1}"))
             text = ctx.get("chunk_text", "")
-            context_str += f"\n--- Source: {source} ---\n{text}\n"
-            
+            max_chars = LLM_CONFIG.get("max_context_chars_per_chunk", 2600)
+            context_str += f"\n[S{i + 1}] Source: {source}\n{text[:max_chars]}\n"
+
         prompt = (
-            "Tu es un assistant expert en documentation technique (Python, Scikit-learn, LangChain). "
-            "Réponds à la question de l'utilisateur en te basant UNIQUEMENT sur les passages fournis ci-dessous.\n"
-            "Règles importantes :\n"
-            "1. Si les passages ne contiennent pas la réponse, dis simplement 'Je ne sais pas d'après les documents fournis'.\n"
-            "2. Cite tes sources en t'appuyant sur les noms de documents indiqués.\n"
-            "3. Rédige ta réponse en français de manière claire et concise.\n\n"
+            "Tu es un assistant expert en documentation technique sur Python, Scikit-learn et LangChain. "
+            "Réponds uniquement à partir des passages fournis.\n"
+            "Règles :\n"
+            "1. Si les passages ne suffisent pas, réponds exactement : "
+            "Je ne sais pas d'après les documents fournis.\n"
+            "2. Cite les passages utilisés avec leurs identifiants [S1], [S2], etc.\n"
+            "3. N'invente ni API, ni paramètre, ni version absente des passages.\n"
+            "4. Rédige une réponse claire et concise dans la langue de la question.\n\n"
             f"Passages extraits :{context_str}\n\n"
             f"Question : {question}\n\n"
             "Réponse :"
         )
+
         return prompt
 
     def generate(self, prompt: str) -> str:
@@ -428,8 +469,26 @@ class RAGPipeline:
             "question": question,
             "answer": answer_text,
             "sources": sources,
-            "retrieval_scores": scores
+            "retrieval_scores": scores,
+            "retrieved_chunks": contexts,
         }
+
+def load_pipeline() -> RAGPipeline:
+    """Charge une seule instance partageable du pipeline RAG."""
+    index, chunks = load_index()
+    search_config = load_search_config()
+    model_name = search_config.get("embedding_model", "all-MiniLM-L6-v2")
+    logger.info(f"Chargement du modèle d'embedding : {model_name}...")
+    embedding_model = SentenceTransformer(model_name)
+    llm_client = auto_detect_client()
+    return RAGPipeline(
+        llm_client=llm_client,
+        index=index,
+        chunks=chunks,
+        embedding_model=embedding_model,
+        search_config=search_config,
+    )
+
 
 def interactive_mode(pipeline: RAGPipeline) -> None:
     """
@@ -508,30 +567,10 @@ def main():
     print("  de réponses via un LLM (Mistral 7B Instruct).")
     print("  Réf. Lewis et al. (2020), Jiang et al. (2023).\n")
 
-    # Charger l'index FAISS et les chunks
-    index, chunks = load_index()
-    print(f"  → {len(chunks)} chunks chargés, index FAISS de dimension {index.d}.")
-
-    # Charger la configuration optimale depuis le benchmark
-    search_config = load_search_config()
-    model_name = search_config.get("embedding_model", "all-MiniLM-L6-v2")
-
-    logger.info(f"Chargement du modèle d'embedding : {model_name}...")
-    embedding_model = SentenceTransformer(model_name)
-    print(f"  → Modèle d'embedding : {model_name}")
-    print(f"  → Méthode de recherche : {search_config['search_method']}")
-
-    # Détecter et charger le LLM
-    llm_client = auto_detect_client()
-
-    # Créer le pipeline
-    pipeline = RAGPipeline(
-        llm_client=llm_client,
-        index=index,
-        chunks=chunks,
-        embedding_model=embedding_model,
-        search_config=search_config,
-    )
+    pipeline = load_pipeline()
+    print(f"  → {len(pipeline.chunks)} chunks chargés, index FAISS de dimension {pipeline.index.d}.")
+    print(f"  → Modèle d'embedding : {pipeline.search_config.get('embedding_model', 'inconnu')}")
+    print(f"  → Méthode de recherche : {pipeline.search_config.get('search_method', 'semantic')}")
 
     # Questions de démonstration
     demo_questions = [

@@ -11,6 +11,7 @@ Usage:
 """
 
 import logging
+import os
 from pathlib import Path
 
 # ============================================================
@@ -26,8 +27,10 @@ logger = logging.getLogger("rag_pipeline")
 # ============================================================
 # CHEMINS DU PROJET
 # ============================================================
-PROJECT_ROOT = Path(__file__).resolve().parent / "rag_project"
-DATA_DIR = PROJECT_ROOT / "data"
+PROJECT_ROOT = Path(os.getenv("RAG_PROJECT_ROOT", Path(__file__).resolve().parent / "rag_project"))
+# Kaggle can redirect generated artifacts outside the source checkout so that
+# re-cloning the repository does not erase the corpus or experiment results.
+DATA_DIR = Path(os.getenv("RAG_DATA_DIR", PROJECT_ROOT / "data"))
 
 # Données brutes (sortie étape 1)
 RAW_DIR = DATA_DIR / "raw"
@@ -66,10 +69,13 @@ LLM_CONFIG = {
     "quantization": "4bit",
 
     # ── Paramètres de génération ──
-    "max_new_tokens": 512,
+    "max_input_tokens": 3072,
+    "max_new_tokens": 256,
     "temperature": 0.1,      # Basse pour des réponses factuelles
     "top_p": 0.9,
     "repetition_penalty": 1.1,
+    "request_timeout_seconds": 180,
+    "max_context_chars_per_chunk": 2600,
 
     # ── Retrieval ──
     "top_k_retrieval": 5,    # Nombre de passages à retrouver
@@ -77,6 +83,22 @@ LLM_CONFIG = {
     # ── Ollama fallback (si pas de GPU) ──
     "ollama_url": "http://localhost:11434",
     "ollama_model": "mistral",
+}
+
+# Paramètres de l'évaluation : les échecs de jugement sont conservés comme
+# invalides et ne sont jamais remplacés silencieusement par 0.5.
+EVALUATION_CONFIG = {
+    "max_claims_per_answer": 8,
+    "max_contexts_per_sample": 5,
+    "judge_temperature": 0.0,
+    "cache_judgments": True,
+}
+
+# Configuration de l'interface Gradio destinée à Kaggle.
+UI_CONFIG = {
+    "share": True,
+    "server_name": "0.0.0.0",
+    "server_port": 7860,
 }
 
 # ============================================================

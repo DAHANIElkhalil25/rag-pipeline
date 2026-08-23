@@ -39,15 +39,30 @@ def print_banner():
     """)
 
 
-def check_dependencies():
-    """Vérifie que toutes les dépendances sont installées."""
+def check_dependencies(etape=None):
+    """Vérifie les dépendances nécessaires à l'étape demandée."""
     missing = []
-    for pkg, import_name in [
+    required = [
         ("gitpython", "git"),
         ("pandas", "pandas"),
         ("tqdm", "tqdm"),
         ("beautifulsoup4", "bs4"),
-    ]:
+    ]
+    if etape is None or etape >= 3:
+        required.extend([
+            ("numpy", "numpy"),
+            ("tiktoken", "tiktoken"),
+            ("sentence-transformers", "sentence_transformers"),
+            ("faiss-cpu", "faiss"),
+        ])
+    if etape is None or etape >= 5:
+        required.extend([
+            ("torch", "torch"),
+            ("transformers", "transformers"),
+            ("accelerate", "accelerate"),
+            ("requests", "requests"),
+        ])
+    for pkg, import_name in required:
         try:
             __import__(import_name)
         except ImportError:
@@ -58,7 +73,7 @@ def check_dependencies():
         print(f"   Installez-les avec : pip install {' '.join(missing)}")
         sys.exit(1)
 
-    # Optionnels
+    # Optionnel pour le nettoyage, mais recommandé.
     try:
         import ftfy
         print("  ✅ ftfy disponible (correction d'encodage avancée)")
@@ -119,7 +134,7 @@ def main():
     print(f"⏰  Début : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     print("🔍  Vérification des dépendances...")
-    check_dependencies()
+    check_dependencies(args.etape)
 
     start = datetime.now()
 

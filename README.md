@@ -141,3 +141,21 @@ rag_project/
 - L'étape 3 (benchmarking) prend ~10-30 min selon le hardware
 - L'étape 4 utilise automatiquement les paramètres optimaux de l'étape 3 si disponibles
 - Testé avec Python 3.10+
+
+## Notebook Kaggle amélioré
+
+Le notebook `notebook_kaggle_rag_improved.ipynb` constitue le protocole expérimental recommandé. Il clone une version déterminée du dépôt, sépare le code des données produites, réutilise les artefacts existants et charge une seule instance du pipeline avant la démonstration, l'évaluation et l'interface.
+
+Dans Kaggle, activez Internet et un GPU T4, puis exécutez les cellules dans l'ordre. Les données sont écrites dans `/kaggle/working/rag_data` et les principaux résultats sont exportés sous forme de fichiers JSON, CSV et PNG. L'archive `/kaggle/working/rag_results_bundle.zip` peut être téléchargée depuis l'onglet Files.
+
+Les fichiers d'évaluation comprennent `ragas_report.json`, `ragas_details.csv`, `evaluation_summary.csv`, `evaluation_details_normalized.csv`, `evaluation_by_source.png`, `evaluation_coverage.png` et `run_manifest.json`. Les valeurs invalides restent absentes et sont accompagnées d'un statut et d'un compteur d'erreurs ; elles ne sont pas remplacées arbitrairement par `0.5`.
+
+## Interface utilisateur
+
+Le module `ui.py` fournit une interface Gradio destinée à Kaggle. Il faut appeler `launch_ui(pipeline, share=True)` après avoir chargé le pipeline. L'interface réutilise la même instance de modèle et affiche la réponse ainsi que les sources récupérées et leurs scores. Elle n'est pas lancée automatiquement par le programme CLI afin de conserver un mode headless compatible avec les notebooks et les environnements CI.
+
+## Interprétation des métriques
+
+L'évaluation de l'étape 6 est une implémentation locale et transparente de métriques inspirées de Ragas. Le rapport distingue la fidélité, la pertinence de la réponse, la précision du contexte et le rappel du contexte. Si une compatibilité stricte avec le paquet officiel Ragas est requise, il faudra ajouter un adaptateur pour le client LLM et le modèle d'embedding avant d'utiliser les métriques officielles.
+
+La précision du contexte est calculée de manière sensible au rang sur les cinq premiers passages, tandis que le rappel du contexte utilise les affirmations de la réponse de référence. Les résultats doivent être interprétés conjointement avec la couverture des scores valides, les erreurs de jugement et les métriques IR du benchmarking.

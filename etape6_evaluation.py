@@ -18,6 +18,8 @@ import sys
 import time
 import json
 import csv
+import hashlib
+import math
 import re
 import numpy as np
 from pathlib import Path
@@ -37,6 +39,7 @@ from config import (
     BENCHMARK_DIR,
     EVALUATION_DIR,
     LLM_CONFIG,
+    EVALUATION_CONFIG,
     logger
 )
 from etape5_generation import load_index, load_search_config, auto_detect_client, RAGPipeline
@@ -222,42 +225,41 @@ def parse_json_from_llm(text: str) -> Any:
     raise ValueError(f"Cannot parse JSON from LLM output: {text[:200]}")
 
 
+def parse_bool_value(value: Any) -> bool:
+    """Convertit uniquement des valeurs booléennes non ambiguës."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "oui", "1"}:
+            return True
+        if normalized in {"false", "no", "non", "0"}:
+            return False
+    raise ValueError(f"Valeur booléenne ambiguë : {value!r}")
+
+
 def parse_boolean_from_llm(text: str) -> bool:
-    """
-    Extrait un booléen de la réponse LLM, même si ce n'est pas du JSON.
+    """Parse un verdict binaire sans déduire un score depuis de la prose."""
+    if not text or not text.strip():
+        raise ValueError("Empty boolean judgment")
 
-    Cherche dans l'ordre :
-    1. JSON avec clé 'supported' ou 'relevant'
-    2. Mots-clés : true/false, oui/non, yes/no
-    """
-    if not text:
-        return False
-
-    # Essayer le JSON d'abord
     try:
         result = parse_json_from_llm(text)
         if isinstance(result, dict):
-            for key in ['supported', 'relevant', 'verdict']:
+            for key in ("supported", "relevant", "verdict"):
                 if key in result:
-                    return bool(result[key])
-        return bool(result)
-    except (ValueError, TypeError):
-        pass
-
-    # Fallback : chercher des mots-clés dans le texte
-    text_lower = text.lower().strip()
-    positive = ['true', '"supported": true', '"relevant": true',
-                'oui', 'yes', 'est soutenu', 'est pertinent',
-                'supporte', 'confirme', 'contient']
-    negative = ['false', '"supported": false', '"relevant": false',
-                'non', 'no', "n'est pas soutenu", "n'est pas pertinent",
-                'ne supporte pas', 'ne contient pas']
-
-    # Compter les indicateurs positifs vs négatifs
-    pos_score = sum(1 for p in positive if p in text_lower)
-    neg_score = sum(1 for n in negative if n in text_lower)
-
-    return pos_score > neg_score
+                    return parse_bool_value(result[key])
+            raise ValueError("JSON judgment has no supported/relevant/verdict key")
+        return parse_bool_value(result)
+    except (ValueError, TypeError, json.JSONDecodeError):
+        normalized = text.strip().lower().strip("` .\\n")
+        if normalized in {"true", "yes", "oui", "1"}:
+            return True
+        if normalized in {"false", "no", "non", "0"}:
+            return False
+        raise ValueError(f"Ambiguous LLM boolean output: {text[:120]!r}")
 
 
 def parse_list_from_llm(text: str, key: str) -> List[str]:
@@ -319,19 +321,30 @@ class RAGASEvaluator:
         self.pipeline = pipeline
         self.llm = llm_client
         self.embedding_model = embedding_model or pipeline.embedding_model
+        self._llm_cache: Dict[str, str] = {}
+        self.failure_counts: Dict[str, int] = {}
 
     def _call_llm(self, prompt: str) -> str:
         """
         Appel générique au LLM via l'interface LLMClient.generate().
         Compatible avec HuggingFaceClient et OllamaClient.
         """
+        cache_key = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        if EVALUATION_CONFIG.get("cache_judgments", True) and cache_key in self._llm_cache:
+            return self._llm_cache[cache_key]
         try:
-            return self.llm.generate(prompt)
+            output = self.llm.generate(prompt)
+            if not isinstance(output, str) or not output.strip():
+                raise ValueError("Empty LLM evaluation output")
+            if EVALUATION_CONFIG.get("cache_judgments", True):
+                self._llm_cache[cache_key] = output
+            return output
         except Exception as e:
+            self.failure_counts["llm_call"] = self.failure_counts.get("llm_call", 0) + 1
             logger.error(f"Erreur lors de l'appel LLM pour l'évaluation : {e}")
-            raise e
+            raise
 
-    def evaluate_faithfulness(self, answer: str, contexts: List[str]) -> float:
+    def evaluate_faithfulness(self, answer: str, contexts: List[str]) -> Optional[float]:
         """
         Évalue l'exactitude de la réponse par rapport au contexte (Faithfulness).
         Score = claims soutenues / total claims.
@@ -349,16 +362,20 @@ class RAGASEvaluator:
         try:
             extract_res = self._call_llm(prompt_extract)
             claims = parse_list_from_llm(extract_res, "claims")
-        except Exception:
-            claims = []
+        except Exception as exc:
+            self.failure_counts["faithfulness_claim_extraction"] = self.failure_counts.get("faithfulness_claim_extraction", 0) + 1
+            logger.warning(f"Extraction des affirmations impossible : {exc}")
+            return None
 
         if not claims:
-            return 0.5
+            self.failure_counts["faithfulness_claim_extraction"] = self.failure_counts.get("faithfulness_claim_extraction", 0) + 1
+            return None
 
         contexts_str = "\n".join(c[:500] for c in contexts[:3])
         supported_count = 0
+        judged_count = 0
 
-        for claim in claims[:5]:  # Limiter à 5 claims pour la vitesse
+        for claim in claims[:EVALUATION_CONFIG.get("max_claims_per_answer", 8)]:
             prompt_verify = (
                 f"Le contexte suivant soutient-il cette affirmation ?\n\n"
                 f"Contexte : {contexts_str[:1500]}\n\n"
@@ -367,14 +384,16 @@ class RAGASEvaluator:
             )
             try:
                 verify_res = self._call_llm(prompt_verify)
-                if parse_boolean_from_llm(verify_res):
-                    supported_count += 1
-            except Exception:
-                supported_count += 0.5  # Incertain = 0.5
+                supported = parse_boolean_from_llm(verify_res)
+                judged_count += 1
+                supported_count += int(supported)
+            except Exception as exc:
+                self.failure_counts["faithfulness_claim_judgment"] = self.failure_counts.get("faithfulness_claim_judgment", 0) + 1
+                logger.warning(f"Affirmation non évaluée : {exc}")
 
-        return supported_count / len(claims) if claims else 0.5
+        return (supported_count / judged_count) if judged_count else None
 
-    def evaluate_answer_relevancy(self, question: str, answer: str, embedding_model: Any) -> float:
+    def evaluate_answer_relevancy(self, question: str, answer: str, embedding_model: Any) -> Optional[float]:
         """
         Évalue la pertinence de la réponse par rapport à la question.
         Génère des questions inverses et mesure la similarité cosinus.
@@ -393,9 +412,12 @@ class RAGASEvaluator:
             res = self._call_llm(prompt)
             gen_questions = parse_list_from_llm(res, "questions")
             if not gen_questions:
-                return 0.5
-        except Exception:
-            return 0.5
+                self.failure_counts["answer_relevancy_question_generation"] = self.failure_counts.get("answer_relevancy_question_generation", 0) + 1
+                return None
+        except Exception as exc:
+            self.failure_counts["answer_relevancy_question_generation"] = self.failure_counts.get("answer_relevancy_question_generation", 0) + 1
+            logger.warning(f"Questions inverses non générées : {exc}")
+            return None
 
         try:
             q_emb = embedding_model.encode(question)
@@ -403,10 +425,11 @@ class RAGASEvaluator:
             similarities = [cosine_similarity(q_emb, ge) for ge in gen_embs]
             return max(0.0, min(1.0, float(np.mean(similarities))))
         except Exception as e:
+            self.failure_counts["answer_relevancy_embedding"] = self.failure_counts.get("answer_relevancy_embedding", 0) + 1
             logger.error(f"Erreur d'embedding Answer Relevancy : {e}")
-            return 0.5
+            return None
 
-    def evaluate_context_precision(self, question: str, contexts: List[str], reference_answer: str) -> float:
+    def evaluate_context_precision(self, question: str, contexts: List[str], reference_answer: str) -> Optional[float]:
         """
         Évalue la précision du contexte vis-à-vis de la question (Context Precision).
         Score = passages pertinents / total passages.
@@ -414,24 +437,37 @@ class RAGASEvaluator:
         if not contexts:
             return 0.0
 
-        relevant_count = 0
-        for ctx in contexts[:5]:  # Limiter à 5 passages
+        relevance = []
+        contexts_to_judge = contexts[:EVALUATION_CONFIG.get("max_contexts_per_sample", 5)]
+        for ctx in contexts_to_judge:
             prompt = (
                 f"Ce passage est-il utile pour répondre à cette question ?\n\n"
                 f"Question : {question}\n\n"
+                f"Réponse de référence : {reference_answer}\n\n"
                 f"Passage : {ctx[:800]}\n\n"
                 "Réponds par 'true' ou 'false' uniquement.\n"
             )
             try:
                 res = self._call_llm(prompt)
-                if parse_boolean_from_llm(res):
-                    relevant_count += 1
-            except Exception:
-                relevant_count += 0.5  # Incertain
+                relevance.append(parse_boolean_from_llm(res))
+            except Exception as exc:
+                self.failure_counts["context_precision_judgment"] = self.failure_counts.get("context_precision_judgment", 0) + 1
+                logger.warning(f"Contexte non évalué : {exc}")
 
-        return relevant_count / len(contexts) if contexts else 0.5
+        if not relevance:
+            return None
+        relevant_total = sum(relevance)
+        if relevant_total == 0:
+            return 0.0
+        relevant_seen = 0
+        precision_sum = 0.0
+        for rank, is_relevant in enumerate(relevance, start=1):
+            if is_relevant:
+                relevant_seen += 1
+                precision_sum += relevant_seen / rank
+        return precision_sum / relevant_total
 
-    def evaluate_context_recall(self, reference_answer: str, contexts: List[str]) -> float:
+    def evaluate_context_recall(self, reference_answer: str, contexts: List[str]) -> Optional[float]:
         """
         Évalue la couverture du contexte par rapport à la réponse de référence.
         Score = claims de la référence couvertes / total claims.
@@ -449,16 +485,20 @@ class RAGASEvaluator:
         try:
             extract_res = self._call_llm(prompt_extract)
             claims = parse_list_from_llm(extract_res, "claims")
-        except Exception:
-            claims = []
+        except Exception as exc:
+            self.failure_counts["context_recall_claim_extraction"] = self.failure_counts.get("context_recall_claim_extraction", 0) + 1
+            logger.warning(f"Extraction des informations de référence impossible : {exc}")
+            return None
 
         if not claims:
-            return 0.5
+            self.failure_counts["context_recall_claim_extraction"] = self.failure_counts.get("context_recall_claim_extraction", 0) + 1
+            return None
 
         contexts_str = "\n".join(c[:500] for c in contexts[:3])
         supported_count = 0
+        judged_count = 0
 
-        for claim in claims[:5]:  # Limiter à 5
+        for claim in claims[:EVALUATION_CONFIG.get("max_claims_per_answer", 8)]:
             prompt_verify = (
                 f"Le contexte suivant contient-il cette information ?\n\n"
                 f"Contexte : {contexts_str[:1500]}\n\n"
@@ -467,12 +507,14 @@ class RAGASEvaluator:
             )
             try:
                 verify_res = self._call_llm(prompt_verify)
-                if parse_boolean_from_llm(verify_res):
-                    supported_count += 1
-            except Exception:
-                supported_count += 0.5
+                supported = parse_boolean_from_llm(verify_res)
+                judged_count += 1
+                supported_count += int(supported)
+            except Exception as exc:
+                self.failure_counts["context_recall_claim_judgment"] = self.failure_counts.get("context_recall_claim_judgment", 0) + 1
+                logger.warning(f"Information de référence non évaluée : {exc}")
 
-        return supported_count / len(claims) if claims else 0.5
+        return (supported_count / judged_count) if judged_count else None
 
     def evaluate_single(self, question: str, reference_answer: str) -> Dict[str, Any]:
         """
@@ -488,6 +530,8 @@ class RAGASEvaluator:
         logger.info(f"Evaluation de la question : '{question}'")
         answer = ""
         contexts = []  # Textes bruts des chunks recupérés
+        retrieved_chunks = []
+        pipeline_error = None
         try:
             # 1. Retrieval : récupérer les k chunks pertinents avec leur texte
             k = LLM_CONFIG.get("top_k_retrieval", 5)
@@ -506,9 +550,12 @@ class RAGASEvaluator:
                 answer = "Aucun document pertinent trouve pour répondre à cette question."
 
         except Exception as e:
+            pipeline_error = f"{type(e).__name__}: {e}"
+            self.failure_counts["pipeline"] = self.failure_counts.get("pipeline", 0) + 1
             logger.error(f"Erreur de la pipeline pour la question '{question}' : {e}")
             answer = ""
             contexts = []
+            retrieved_chunks = []
 
         metrics = {
             "faithfulness": self.evaluate_faithfulness(answer, contexts),
@@ -517,18 +564,43 @@ class RAGASEvaluator:
             "context_recall": self.evaluate_context_recall(reference_answer, contexts)
         }
 
+        metric_status = {
+            name: ("valid" if value is not None else "invalid")
+            for name, value in metrics.items()
+        }
+        sample_status = "pipeline_error" if pipeline_error else (
+            "valid" if all(value is not None for value in metrics.values()) else "partial"
+        )
+
         return {
             "question": question,
             "generated_answer": answer,
             "reference_answer": reference_answer,
             "contexts": contexts,
-            "metrics": metrics
+            "retrieved_chunks": [
+                {
+                    "chunk_id": chunk.get("chunk_id"),
+                    "doc_title": chunk.get("doc_title"),
+                    "doc_source": chunk.get("doc_source"),
+                    "doc_filepath": chunk.get("doc_filepath"),
+                    "retrieval_score": chunk.get("retrieval_score"),
+                    "rank": rank,
+                }
+                for rank, chunk in enumerate(retrieved_chunks, start=1)
+            ],
+            "metrics": metrics,
+            "metric_status": metric_status,
+            "status": sample_status,
+            "error": pipeline_error,
         }
 
     def evaluate_all(self, qa_pairs: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Évalue toutes les paires Question/Réponse.
         """
+        if not qa_pairs:
+            raise ValueError("Le jeu d'évaluation ne peut pas être vide.")
+
         results = []
         for i, qa in enumerate(qa_pairs):
             logger.info(f"--- Évaluation Q {i+1}/{len(qa_pairs)} ---")
@@ -536,18 +608,47 @@ class RAGASEvaluator:
             res["source_filter"] = qa.get("source_filter", "Autre")
             results.append(res)
             
-        # Calcul des moyennes
-        mean_metrics = {
-            "faithfulness": float(np.mean([r["metrics"]["faithfulness"] for r in results])),
-            "answer_relevancy": float(np.mean([r["metrics"]["answer_relevancy"] for r in results])),
-            "context_precision": float(np.mean([r["metrics"]["context_precision"] for r in results])),
-            "context_recall": float(np.mean([r["metrics"]["context_recall"] for r in results]))
-        }
-        
+        metric_names = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
+        metric_summary = {}
+        for name in metric_names:
+            values = [
+                float(r["metrics"][name])
+                for r in results
+                if r["metrics"].get(name) is not None and math.isfinite(float(r["metrics"][name]))
+            ]
+            metric_summary[name] = {
+                "mean": float(np.mean(values)) if values else None,
+                "median": float(np.median(values)) if values else None,
+                "std": float(np.std(values, ddof=1)) if len(values) > 1 else 0.0 if values else None,
+                "n_valid": len(values),
+                "n_total": len(results),
+                "coverage": len(values) / len(results),
+            }
+
         return {
-            "mean_metrics": mean_metrics,
-            "details": results
+            "mean_metrics": {name: metric_summary[name]["mean"] for name in metric_names},
+            "metric_summary": metric_summary,
+            "n_samples": len(results),
+            "n_pipeline_errors": sum(r.get("status") == "pipeline_error" for r in results),
+            "n_partial_samples": sum(r.get("status") == "partial" for r in results),
+            "failure_counts": dict(self.failure_counts),
+            "details": results,
         }
+
+
+def _format_score(value: Optional[float]) -> str:
+    """Formatte un score sans transformer une valeur absente en zéro."""
+    return "" if value is None else f"{float(value):.4f}"
+
+
+def _valid_mean(details: List[Dict[str, Any]], metric: str) -> Optional[float]:
+    values = [
+        float(item["metrics"][metric])
+        for item in details
+        if item.get("metrics", {}).get(metric) is not None
+        and math.isfinite(float(item["metrics"][metric]))
+    ]
+    return float(np.mean(values)) if values else None
 
 
 def generate_evaluation_report(results: Dict[str, Any], elapsed: float):
@@ -559,26 +660,36 @@ def generate_evaluation_report(results: Dict[str, Any], elapsed: float):
     report_json_path = EVALUATION_DIR / "ragas_report.json"
     report_csv_path = EVALUATION_DIR / "ragas_details.csv"
     
-    # 1. Sauvegarde JSON
+    results["run_metadata"] = {
+        "elapsed_seconds": round(float(elapsed), 3),
+        "evaluator": "custom_ragas_inspired_evaluator",
+        "evaluation_config": EVALUATION_CONFIG,
+    }
+
+    # 1. Sauvegarde JSON structurée
     with open(report_json_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=4)
-        
-    # 2. Sauvegarde CSV
+        json.dump(results, f, ensure_ascii=False, indent=4, allow_nan=False)
+
+    # 2. Sauvegarde CSV exploitable par pandas/Excel
     with open(report_csv_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([
-            "Question", "Source", "Generated_Answer", "Faithfulness", 
-            "Answer_Relevancy", "Context_Precision", "Context_Recall"
+            "Question", "Source", "Status", "Error", "Generated_Answer",
+            "Context_Count", "Faithfulness", "Answer_Relevancy",
+            "Context_Precision", "Context_Recall",
         ])
         for detail in results["details"]:
             writer.writerow([
                 detail["question"],
                 detail.get("source_filter", ""),
-                detail["generated_answer"],
-                f"{detail['metrics']['faithfulness']:.4f}",
-                f"{detail['metrics']['answer_relevancy']:.4f}",
-                f"{detail['metrics']['context_precision']:.4f}",
-                f"{detail['metrics']['context_recall']:.4f}"
+                detail.get("status", ""),
+                detail.get("error", ""),
+                detail.get("generated_answer", ""),
+                len(detail.get("contexts", [])),
+                _format_score(detail["metrics"].get("faithfulness")),
+                _format_score(detail["metrics"].get("answer_relevancy")),
+                _format_score(detail["metrics"].get("context_precision")),
+                _format_score(detail["metrics"].get("context_recall")),
             ])
             
     # 3. Print résumé dans le terminal
@@ -589,7 +700,11 @@ def generate_evaluation_report(results: Dict[str, Any], elapsed: float):
     print("\nMoyennes globales :")
     print("-" * 30)
     for k, v in results["mean_metrics"].items():
-        print(f"{k.ljust(20)} : {v:.4f}")
+        rendered = "NA" if v is None else f"{float(v):.4f}"
+        print(f"{k.ljust(20)} : {rendered}")
+    print(f"\nÉchantillons : {results.get('n_samples', len(results.get('details', [])))}")
+    print(f"Erreurs pipeline : {results.get('n_pipeline_errors', 0)}")
+    print(f"Échantillons partiels : {results.get('n_partial_samples', 0)}")
         
     # 4. Print breakdown par source
     print("\nMoyennes par source :")
@@ -600,75 +715,59 @@ def generate_evaluation_report(results: Dict[str, Any], elapsed: float):
             continue
         src_details = [d for d in results["details"] if d.get("source_filter") == src]
         if src_details:
-            f_mean = float(np.mean([d["metrics"]["faithfulness"] for d in src_details]))
-            ar_mean = float(np.mean([d["metrics"]["answer_relevancy"] for d in src_details]))
-            cp_mean = float(np.mean([d["metrics"]["context_precision"] for d in src_details]))
-            cr_mean = float(np.mean([d["metrics"]["context_recall"] for d in src_details]))
+            source_means = {
+                "Faithfulness": _valid_mean(src_details, "faithfulness"),
+                "Answer Relevancy": _valid_mean(src_details, "answer_relevancy"),
+                "Context Precision": _valid_mean(src_details, "context_precision"),
+                "Context Recall": _valid_mean(src_details, "context_recall"),
+            }
             print(f"Source: {src} ({len(src_details)} questions)")
-            print(f"  Faithfulness      : {f_mean:.4f}")
-            print(f"  Answer Relevancy  : {ar_mean:.4f}")
-            print(f"  Context Precision : {cp_mean:.4f}")
-            print(f"  Context Recall    : {cr_mean:.4f}")
+            for label, value in source_means.items():
+                rendered = "NA" if value is None else f"{value:.4f}"
+                print(f"  {label.ljust(19)} : {rendered}")
             print()
 
-def main():
-    """
-    Point d'entrée de l'évaluation RAGAS.
-    """
-    print("\n" + "=" * 65)
-    print("📊  ÉTAPE 6 — ÉVALUATION RAGAS DU SYSTÈME RAG")
-    print("=" * 65)
-    print("\n  Évaluation du système selon les métriques RAGAS")
-    print("  Réf. Es et al. (2024) — RAGAS: Automated Evaluation of RAG.\n")
-    
-    os.makedirs(EVALUATION_DIR, exist_ok=True)
-    
+def run_evaluation(
+    pipeline: RAGPipeline,
+    qa_pairs: Optional[List[Dict[str, Any]]] = None,
+    output_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Évalue un pipeline déjà chargé et écrit un rapport reproductible."""
     start_time = time.time()
-    
-    # Chargement de l'index et des chunks
-    logger.info("Chargement de l'index et de la configuration...")
-    index, chunks = load_index()
-    print(f"  → {len(chunks)} chunks chargés.")
-    
-    # Configuration depuis le benchmark
-    search_config = load_search_config()
-    model_name = search_config.get("embedding_model", "all-MiniLM-L6-v2")
-    
-    logger.info(f"Chargement du modèle d'embedding : {model_name}...")
-    from sentence_transformers import SentenceTransformer
-    embedding_model = SentenceTransformer(model_name)
-    
-    # Initialisation du LLM
-    logger.info("Initialisation du client LLM...")
-    llm_client = auto_detect_client()
-    
-    # Construction du pipeline RAG
-    logger.info("Initialisation du pipeline RAG...")
-    pipeline = RAGPipeline(
-        llm_client=llm_client,
-        index=index,
-        chunks=chunks,
-        embedding_model=embedding_model,
-        search_config=search_config,
-    )
-    
-    evaluator = RAGASEvaluator(pipeline, llm_client, embedding_model)
-    
-    print(f"  → Évaluation sur {len(GROUND_TRUTH_QA)} questions (ground truth)")
-    print("  → Métriques : Faithfulness, Answer Relevancy, Context Precision, Context Recall\n")
-    
-    logger.info("Démarrage de l'évaluation...")
-    report = evaluator.evaluate_all(GROUND_TRUTH_QA)
-    
+    qa_pairs = qa_pairs or GROUND_TRUTH_QA
+    logger.info(f"Démarrage de l'évaluation sur {len(qa_pairs)} questions...")
+    evaluator = RAGASEvaluator(pipeline, pipeline.llm_client, pipeline.embedding_model)
+    report = evaluator.evaluate_all(qa_pairs)
     elapsed = time.time() - start_time
-    
-    generate_evaluation_report(report, elapsed)
-    
+    if output_dir is not None:
+        global EVALUATION_DIR
+        previous_dir = EVALUATION_DIR
+        EVALUATION_DIR = Path(output_dir)
+        try:
+            generate_evaluation_report(report, elapsed)
+        finally:
+            EVALUATION_DIR = previous_dir
+    return report
+
+
+def main(pipeline: Optional[RAGPipeline] = None):
+    """Point d'entrée CLI; réutilise un pipeline fourni depuis un notebook."""
     print("\n" + "=" * 65)
-    print("🎉  Étape 6 terminée !")
+    print("📊  ÉTAPE 6 — ÉVALUATION DU SYSTÈME RAG")
+    print("=" * 65)
+    print("\n  Métriques : Faithfulness, Answer Relevancy, Context Precision, Context Recall\n")
+
+    if pipeline is None:
+        from etape5_generation import load_pipeline
+        logger.info("Chargement du pipeline RAG...")
+        pipeline = load_pipeline()
+
+    report = run_evaluation(pipeline, output_dir=EVALUATION_DIR)
+    print("\n" + "=" * 65)
+    print("🎉  Évaluation terminée !")
     print(f"    → Rapport sauvegardé dans {EVALUATION_DIR}")
-    print(f"    ⏱️  Durée totale : {elapsed/60:.1f} minutes")
     print("=" * 65 + "\n")
+    return report
 
 
 if __name__ == "__main__":
