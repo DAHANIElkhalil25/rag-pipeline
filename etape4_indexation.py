@@ -33,6 +33,7 @@ Prérequis:
 """
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -49,7 +50,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from config import CLEAN_DIR, PROCESSED_DIR, METADATA_DIR, BENCHMARK_DIR, logger
+from config import CLEAN_DIR, PROCESSED_DIR, METADATA_DIR, BENCHMARK_DIR, CONFIG, logger
 from core.chunker import DocumentChunker
 from core.loaders import load_cleaned_documents, check_ml_dependencies
 
@@ -59,6 +60,7 @@ VECTORSTORE_DIR = PROCESSED_DIR / "vectorstore"
 FAISS_INDEX_PATH = VECTORSTORE_DIR / "faiss_index.bin"
 CHUNKS_META_PATH = VECTORSTORE_DIR / "chunks_metadata.json"
 REPORT_PATH = METADATA_DIR / "chunking_report.json"
+INDEX_MANIFEST_PATH = VECTORSTORE_DIR / "index_manifest.json"
 
 
 # ============================================================
@@ -254,6 +256,36 @@ def save_index(index, chunks_metadata: List[Dict]):
     logger.info(f"Métadonnées sauvegardées : {CHUNKS_META_PATH}")
 
 
+def write_index_manifest(chunks: List[Dict], config: Dict, embeddings: np.ndarray) -> Dict:
+    """Écrit la provenance nécessaire pour reproduire un index final."""
+    source_versions = {
+        source: CONFIG.get(str(source).lower(), {}).get("version", "unknown")
+        for source in sorted({chunk.get("doc_source", "unknown") for chunk in chunks})
+    }
+    metadata_bytes = CHUNKS_META_PATH.read_bytes()
+    manifest = {
+        "schema_version": "final_index_v1",
+        "total_chunks": len(chunks),
+        "total_documents": len({chunk.get("document_id") for chunk in chunks}),
+        "embedding_dimension": int(embeddings.shape[1]),
+        "index_config": config,
+        "source_versions": source_versions,
+        "chunks_metadata_sha256": hashlib.sha256(metadata_bytes).hexdigest(),
+        "required_chunk_fields": [
+            "chunk_id", "document_id", "doc_source", "source_version",
+            "doc_url", "doc_section", "chunk_index", "content_sha256",
+            "chunk_content_sha256",
+        ],
+        "output_files": {
+            "faiss_index": str(FAISS_INDEX_PATH),
+            "chunks_metadata": str(CHUNKS_META_PATH),
+        },
+    }
+    INDEX_MANIFEST_PATH.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info(f"Manifeste de l'index sauvegardé : {INDEX_MANIFEST_PATH}")
+    return manifest
+
+
 # ============================================================
 # TEST DE RECHERCHE (VALIDATION)
 # ============================================================
@@ -333,6 +365,7 @@ def generate_report(chunks: List[Dict], embeddings: np.ndarray,
         "output_files": {
             "faiss_index": str(FAISS_INDEX_PATH),
             "chunks_metadata": str(CHUNKS_META_PATH),
+            "index_manifest": str(INDEX_MANIFEST_PATH),
         },
     }
 
@@ -460,6 +493,7 @@ def main():
     print("-" * 50)
     index = build_faiss_index(embeddings)
     save_index(index, all_chunks)
+    write_index_manifest(all_chunks, config, embeddings)
 
     # 6. Validation par recherche
     test_search(index, all_chunks, config)

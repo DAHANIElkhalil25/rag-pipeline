@@ -10,7 +10,10 @@ Usage:
     python main.py --etape 3    # Étape 3 : Benchmarking des paramètres
     python main.py --etape 4    # Étape 4 : Chunking et indexation (config optimale)
     python main.py --etape 5    # Étape 5 : Recherche et génération RAG (LLM)
-    python main.py --etape 6    # Étape 6 : Évaluation RAGAS du système
+    python main.py --etape 6    # Baseline : évaluateur local Ragas-inspired
+    python main.py --final-eval --dataset evaluation/datasets/dev_dataset_v1.jsonl \
+        --run-id dev_v1 --judge-provider openai --judge-model gpt-4o-mini \
+        --api-key-env OPENAI_API_KEY
 
 Prérequis:
     pip install -r requirements.txt
@@ -39,7 +42,7 @@ def print_banner():
     """)
 
 
-def check_dependencies(etape=None):
+def check_dependencies(etape=None, final_eval=False):
     """Vérifie les dépendances nécessaires à l'étape demandée."""
     missing = []
     required = [
@@ -61,6 +64,11 @@ def check_dependencies(etape=None):
             ("transformers", "transformers"),
             ("accelerate", "accelerate"),
             ("requests", "requests"),
+        ])
+    if final_eval:
+        required.extend([
+            ("ragas", "ragas"),
+            ("openai", "openai"),
         ])
     for pkg, import_name in required:
         try:
@@ -119,6 +127,26 @@ def run_etape6():
     etape6_main()
 
 
+def run_final_evaluation(dataset_path, run_id, provider, judge_model, api_key_env):
+    """Lance l'évaluation finale officielle sans toucher à la baseline."""
+    import asyncio
+    import os
+    from etape5_generation import load_pipeline
+    from evaluation.ragas_runner import run_final_evaluation as run_ragas
+
+    api_key = os.getenv(api_key_env, "")
+    return asyncio.run(
+        run_ragas(
+            pipeline=load_pipeline(),
+            dataset_path=dataset_path,
+            run_id=run_id,
+            provider=provider,
+            judge_model=judge_model,
+            api_key=api_key,
+        )
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Pipeline RAG — Collecte, préparation, benchmarking, "
@@ -128,17 +156,45 @@ def main():
         "--etape", type=int, choices=[1, 2, 3, 4, 5, 6],
         help="Numéro de l'étape (1-6). Sans argument : toutes."
     )
+    parser.add_argument("--final-eval", action="store_true", help="Lance le protocole final Ragas officiel.")
+    parser.add_argument("--dataset", type=str, help="Chemin JSONL du jeu dev ou test final.")
+    parser.add_argument("--run-id", type=str, help="Identifiant unique de l'expérience finale.")
+    parser.add_argument("--judge-provider", choices=("openai", "mistral"), help="Provider du modèle juge Ragas.")
+    parser.add_argument("--judge-model", type=str, help="Nom du modèle juge.")
+    parser.add_argument("--api-key-env", type=str, help="Nom de la variable d'environnement contenant la clé juge.")
     args = parser.parse_args()
+
+    if args.final_eval and args.etape is not None:
+        parser.error("Utilisez soit --etape, soit --final-eval, pas les deux.")
+    if args.final_eval:
+        missing_final_args = [
+            name for name, value in {
+                "--dataset": args.dataset,
+                "--run-id": args.run_id,
+                "--judge-provider": args.judge_provider,
+                "--judge-model": args.judge_model,
+                "--api-key-env": args.api_key_env,
+            }.items() if not value
+        ]
+        if missing_final_args:
+            parser.error(f"Arguments obligatoires pour --final-eval : {', '.join(missing_final_args)}")
 
     print_banner()
     print(f"⏰  Début : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     print("🔍  Vérification des dépendances...")
-    check_dependencies(args.etape)
+    check_dependencies(args.etape, final_eval=args.final_eval)
 
     start = datetime.now()
 
-    if args.etape == 1:
+    if args.final_eval:
+        from pathlib import Path
+        final_result = run_final_evaluation(
+            Path(args.dataset), args.run_id, args.judge_provider,
+            args.judge_model, args.api_key_env,
+        )
+        print(f"✅ Évaluation finale sauvegardée : {final_result['run_dir']}")
+    elif args.etape == 1:
         run_etape1()
     elif args.etape == 2:
         run_etape2()

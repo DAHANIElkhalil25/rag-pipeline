@@ -142,19 +142,69 @@ rag_project/
 - L'étape 4 utilise automatiquement les paramètres optimaux de l'étape 3 si disponibles
 - Testé avec Python 3.10+
 
-## Notebook Kaggle amélioré
+## Baseline pré-améliorations
 
-Le notebook `notebook_kaggle_rag_improved.ipynb` constitue le protocole expérimental recommandé. Il clone une version déterminée du dépôt, sépare le code des données produites, réutilise les artefacts existants et charge une seule instance du pipeline avant la démonstration, l'évaluation et l'interface.
+La baseline est conservée de manière immuable afin de permettre la comparaison académique avant/après. Les résultats observés dans Kaggle sont enregistrés dans `evaluation/baseline/baseline_metrics_v1.json`, le notebook initial est archivé dans `notebooks/baseline_kaggle_rag_v1.ipynb` et l'ancien évaluateur local est conservé dans `legacy/etape6_baseline_custom.py`.
+
+La baseline utilise 20 questions et un évaluateur local inspiré de Ragas. Elle ne doit pas être écrasée par les expériences du système final.
+
+## Notebook Kaggle baseline
+
+Le notebook `notebooks/baseline_kaggle_rag_v1.ipynb` archive le protocole initial. Il clone une version déterminée du dépôt, sépare le code des données produites, réutilise les artefacts existants et charge une seule instance du pipeline avant la démonstration, l'évaluation et l'interface.
 
 Dans Kaggle, activez Internet et un GPU T4, puis exécutez les cellules dans l'ordre. Les données sont écrites dans `/kaggle/working/rag_data` et les principaux résultats sont exportés sous forme de fichiers JSON, CSV et PNG. L'archive `/kaggle/working/rag_results_bundle.zip` peut être téléchargée depuis l'onglet Files.
 
 Les fichiers d'évaluation comprennent `ragas_report.json`, `ragas_details.csv`, `evaluation_summary.csv`, `evaluation_details_normalized.csv`, `evaluation_by_source.png`, `evaluation_coverage.png` et `run_manifest.json`. Les valeurs invalides restent absentes et sont accompagnées d'un statut et d'un compteur d'erreurs ; elles ne sont pas remplacées arbitrairement par `0.5`.
 
+## Système final et notebook Kaggle séparé
+
+Utilisez `notebooks/final_kaggle_rag_system_v2.ipynb` pour le système final. Ce notebook reconstruit le corpus et l'index final, applique réellement le dédoublonnage, produit un manifeste d'index, sauvegarde les fenêtres de contexte exactes fournies au générateur et lance l'évaluation officielle Ragas v0.4.3 sans modifier la baseline.
+
+Dans Kaggle, activez Internet et un GPU T4. Pour lancer Ragas, créez un Kaggle Secret nommé `OPENAI_API_KEY` ou `MISTRAL_API_KEY`, sélectionnez le provider et le modèle juge dans la cellule de configuration, puis activez `RUN_OFFICIAL_RAGAS`. La clé ne doit jamais être écrite dans le notebook ni dans le dépôt.
+
+Le notebook distingue strictement les jeux suivants :
+
+| Fichier | Rôle |
+|---|---|
+| `evaluation/datasets/dev_dataset_v1.jsonl` | Les 20 questions historiques, utilisées seulement pendant le développement. |
+| `evaluation/datasets/test_dataset_v1_annotation_template.csv` | Le plan équilibré de 120 questions finales à annoter manuellement. |
+| `evaluation/datasets/test_dataset_v1.jsonl` | Le test final validé et gelé, créé seulement après revue humaine. |
+
+Après avoir complété le CSV de 120 questions, convertissez-le avec :
+
+```bash
+python evaluation/convert_annotations.py \
+  --input evaluation/datasets/test_dataset_v1_annotation_template.csv \
+  --output evaluation/datasets/test_dataset_v1.jsonl
+```
+
+La conversion refuse un test final incomplet, non relu ou dépourvu d'identifiants de chunks de référence. Les règles détaillées se trouvent dans `evaluation/annotation_guidelines.md`.
+
+## Évaluation Ragas officielle du système final
+
+Le module `evaluation/ragas_runner.py` est l'entrée principale du système final. Il charge le jeu JSONL, enregistre les réponses, les chunks récupérés, les identifiants de chunks, les textes exacts fournis au prompt, les erreurs et les métriques par question. Il sauvegarde ensuite `samples.jsonl`, `samples.csv`, `summary.json` et `manifest.json` dans `data/evaluation/runs/<run_id>/`.
+
+Les métriques officielles utilisées sont `Faithfulness`, `AnswerRelevancy`, `ContextPrecision`, `ContextRecall` et `FactualCorrectness`. Lorsque les `reference_context_ids` ont été annotés, le runner ajoute aussi des métriques déterministes de précision et rappel par identifiants. Les références de compatibilité Ragas sont documentées dans `evaluation/official_ragas_sources.md`.
+
+Exemple CLI :
+
+```bash
+export OPENAI_API_KEY="..."
+python main.py --final-eval \
+  --dataset evaluation/datasets/dev_dataset_v1.jsonl \
+  --run-id dev_ragas_v1 \
+  --judge-provider openai \
+  --judge-model gpt-4o-mini \
+  --api-key-env OPENAI_API_KEY
+```
+
+Le générateur local Mistral et le modèle juge Ragas sont volontairement séparés. La baseline locale reste disponible uniquement pour la comparaison historique ; les résultats Ragas du système final sont les métriques principales à utiliser dans la comparaison finale.
+
 ## Interface utilisateur
 
 Le module `ui.py` fournit une interface Gradio destinée à Kaggle. Il faut appeler `launch_ui(pipeline, share=True)` après avoir chargé le pipeline. L'interface réutilise la même instance de modèle et affiche la réponse ainsi que les sources récupérées et leurs scores. Elle n'est pas lancée automatiquement par le programme CLI afin de conserver un mode headless compatible avec les notebooks et les environnements CI.
 
-## Interprétation des métriques
+## Interprétation des métriques baseline
 
 L'évaluation de l'étape 6 est une implémentation locale et transparente de métriques inspirées de Ragas. Le rapport distingue la fidélité, la pertinence de la réponse, la précision du contexte et le rappel du contexte. Si une compatibilité stricte avec le paquet officiel Ragas est requise, il faudra ajouter un adaptateur pour le client LLM et le modèle d'embedding avant d'utiliser les métriques officielles.
 

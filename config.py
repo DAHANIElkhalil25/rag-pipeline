@@ -53,6 +53,8 @@ METADATA_DIR = DATA_DIR / "metadata"
 
 # Évaluation (sortie étape 6)
 EVALUATION_DIR = DATA_DIR / "evaluation"
+EVALUATION_DATASETS_DIR = EVALUATION_DIR / "datasets"
+EVALUATION_RUNS_DIR = EVALUATION_DIR / "runs"
 
 # ============================================================
 # CONFIGURATION DU LLM (ÉTAPE 5)
@@ -92,6 +94,23 @@ EVALUATION_CONFIG = {
     "max_contexts_per_sample": 5,
     "judge_temperature": 0.0,
     "cache_judgments": True,
+}
+
+# Configuration de l'évaluation finale. La baseline historique est conservée
+# séparément : ce bloc ne doit être utilisé que pour les expériences finales.
+RAGAS_CONFIG = {
+    "ragas_version": "0.4.3",
+    "metrics": [
+        "faithfulness",
+        "answer_relevancy",
+        "context_precision",
+        "context_recall",
+        "factual_correctness",
+    ],
+    "batch_size": 10,
+    "checkpoint_every": 10,
+    "default_split": "dev",
+    "judge_mode": "external_or_adapter",
 }
 
 # Configuration de l'interface Gradio destinée à Kaggle.
@@ -159,6 +178,8 @@ def init_directories():
         BENCHMARK_DIR,
         METADATA_DIR,
         EVALUATION_DIR,
+        EVALUATION_DATASETS_DIR,
+        EVALUATION_RUNS_DIR,
     ]
     for d in dirs:
         d.mkdir(parents=True, exist_ok=True)

@@ -392,6 +392,20 @@ class RAGPipeline:
                     
         return results
 
+    def get_prompt_contexts(self, contexts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Return the exact ranked text windows that will be inserted into the prompt."""
+        max_chars = LLM_CONFIG.get("max_context_chars_per_chunk", 2600)
+        return [
+            {
+                "rank": index,
+                "chunk_id": context.get("chunk_id"),
+                "text": context.get("chunk_text", "")[:max_chars],
+                "source_label": context.get("doc_title", context.get("doc_source", f"Document {index}")),
+            }
+            for index, context in enumerate(contexts, start=1)
+            if context.get("chunk_text", "").strip()
+        ]
+
     def build_prompt(self, question: str, contexts: List[Dict[str, Any]]) -> str:
         """
         Construit le prompt pour le modèle de langage.
@@ -404,11 +418,8 @@ class RAGPipeline:
             str: Le prompt formaté.
         """
         context_str = ""
-        for i, ctx in enumerate(contexts):
-            source = ctx.get("doc_title", ctx.get("doc_source", f"Document {i+1}"))
-            text = ctx.get("chunk_text", "")
-            max_chars = LLM_CONFIG.get("max_context_chars_per_chunk", 2600)
-            context_str += f"\n[S{i + 1}] Source: {source}\n{text[:max_chars]}\n"
+        for context in self.get_prompt_contexts(contexts):
+            context_str += f"\n[S{context['rank']}] Source: {context['source_label']}\n{context['text']}\n"
 
         prompt = (
             "Tu es un assistant expert en documentation technique sur Python, Scikit-learn et LangChain. "
@@ -461,6 +472,7 @@ class RAGPipeline:
             
         prompt = self.build_prompt(question, contexts)
         answer_text = self.generate(prompt)
+        prompt_context_records = self.get_prompt_contexts(contexts)
         
         sources = [{"doc_title": c.get("doc_title"), "doc_source": c.get("doc_source")} for c in contexts]
         scores = [c.get("retrieval_score", 0.0) for c in contexts]
@@ -471,6 +483,8 @@ class RAGPipeline:
             "sources": sources,
             "retrieval_scores": scores,
             "retrieved_chunks": contexts,
+            "prompt_contexts": [record["text"] for record in prompt_context_records],
+            "prompt_context_metadata": prompt_context_records,
         }
 
 def load_pipeline() -> RAGPipeline:

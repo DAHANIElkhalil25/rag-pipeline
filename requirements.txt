@@ -19,9 +19,13 @@ accelerate>=0.25.0
 bitsandbytes>=0.41.0
 requests>=2.31.0
 
-# === Évaluation et interface (étape 6) ===
-# Step 6 currently implements transparent local Ragas-inspired metrics.
-# Install official Ragas separately only when its adapters are configured.
+# === Évaluation officielle et interface (système final) ===
+# L'API Ragas évolue : cette version est verrouillée et le manifeste de chaque
+# exécution conserve les versions réellement installées.
+ragas==0.4.3
+openai>=1.0.0
+mistralai>=1.0.0
+langchain-community>=0.3.0,<0.4.0
 gradio>=4.44.0
 
 # === Tests ===

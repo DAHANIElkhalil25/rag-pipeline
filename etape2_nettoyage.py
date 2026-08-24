@@ -42,7 +42,7 @@ except ImportError:
 
 from config import (
     PYTHON_RAW, SKLEARN_RAW, LANGCHAIN_RAW,
-    CLEAN_DIR, METADATA_DIR, logger,
+    CLEAN_DIR, METADATA_DIR, CONFIG, logger,
 )
 from utils import load_raw_documents
 
@@ -412,6 +412,11 @@ def clean_document(doc: Dict) -> Optional[Dict]:
     # Séparation code/texte
     separated = code_separator.separate(cleaned)
 
+    source_key = str(metadata.get("source", "unknown")).lower()
+    content_sha256 = hashlib.sha256(cleaned.encode("utf-8")).hexdigest()
+    path_hint = re.sub(r"[^a-z0-9]+", "_", str(metadata.get("filepath", metadata.get("title", "document"))).lower()).strip("_")[:64] or "document"
+    document_id = f"{source_key}_{path_hint}_{content_sha256[:12]}"
+
     return {
         "cleaned_content": cleaned,
         "text_only": separated["text_only"],
@@ -429,6 +434,9 @@ def clean_document(doc: Dict) -> Optional[Dict]:
             "cleaned_word_count": len(cleaned.split()),
             "text_only_word_count": len(separated["text_only"].split()),
             "content_hash": hashlib.md5(cleaned.encode()).hexdigest(),
+            "content_sha256": content_sha256,
+            "document_id": document_id,
+            "source_version": metadata.get("source_version", CONFIG.get(source_key, {}).get("version", "unknown")),
         }
     }
 
@@ -436,6 +444,10 @@ def clean_document(doc: Dict) -> Optional[Dict]:
 def process_source(source_name: str, json_dir: Path, output_dir: Path) -> Tuple[List[Dict], Dict]:
     """Nettoie tous les documents d'une source."""
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Une réexécution doit repartir d'un corpus nettoyé cohérent et ne pas
+    # conserver des fichiers périmés d'une collecte précédente.
+    for old_file in output_dir.glob("clean_*.json"):
+        old_file.unlink()
     documents = load_raw_documents(json_dir)
     meta_list, stats = [], {"input": len(documents), "output": 0, "filtered": 0, "errors": 0}
 
@@ -452,6 +464,7 @@ def process_source(source_name: str, json_dir: Path, output_dir: Path) -> Tuple[
             safe = re.sub(r'[^\w\-.]', '_', fp)[:100]
             fh = hashlib.md5(fp.encode()).hexdigest()[:8]
             out_path = output_dir / f"clean_{safe}_{fh}.json"
+            cleaned["metadata"]["cleaned_file"] = str(out_path)
 
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(cleaned, f, ensure_ascii=False, indent=2)
@@ -526,10 +539,23 @@ def main():
     # Dédoublonnage
     unique_meta, exact_dups, near_dups = deduplicate(all_meta)
 
+    # Le rapport et le corpus indexé doivent désigner exactement le même jeu
+    # de documents. Les quasi-doublons sont donc supprimés physiquement.
+    retained_files = {meta.get("cleaned_file") for meta in unique_meta}
+    removed_files = 0
+    for meta in all_meta:
+        candidate = meta.get("cleaned_file")
+        if candidate and candidate not in retained_files:
+            path = Path(candidate)
+            if path.exists():
+                path.unlink()
+                removed_files += 1
+
     # Export
     df = pd.DataFrame(unique_meta)
     index_path = CLEAN_DIR / "corpus_cleaned_index.csv"
     df.to_csv(index_path, index=False, encoding='utf-8')
+    logger.info(f"Dédoublonnage appliqué au corpus : {removed_files} fichiers supprimés.")
 
     # Rapport
     print("\n" + "=" * 65)

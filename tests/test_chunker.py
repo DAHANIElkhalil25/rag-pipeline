@@ -25,6 +25,7 @@ class TestDocumentChunker:
                 "url": "https://test.com",
                 "section": "other",
                 "content_hash": "abc123def456",
+                "source_version": "test-1.0",
             }
         }
 
@@ -62,8 +63,13 @@ class TestDocumentChunker:
         assert "doc_title" in chunk
         assert "token_count" in chunk
         assert "has_code" in chunk
+        assert "document_id" in chunk
+        assert "source_version" in chunk
+        assert "content_sha256" in chunk
+        assert "chunk_content_sha256" in chunk
         assert chunk["doc_source"] == "sklearn"
         assert chunk["doc_title"] == "Test Doc"
+        assert chunk["source_version"] == "test-1.0"
 
     def test_chunk_ids_unique(self):
         """Tous les chunk_ids d'un document sont uniques."""

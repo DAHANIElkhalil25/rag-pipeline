@@ -34,6 +34,12 @@ from typing import Dict, List, Tuple
 from core.tokenizer import TokenCounter
 
 
+def _identifier(value: str, fallback: str) -> str:
+    """Construit un identifiant lisible et stable à partir d'un texte."""
+    normalized = re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
+    return normalized[:64] or fallback
+
+
 class DocumentChunker:
     """
     Chunker paramétrable pour le benchmarking et l'indexation.
@@ -101,8 +107,10 @@ class DocumentChunker:
                             raw_chunks.append((section_title, piece))
 
         # Phase 3 : Construire les chunks avec métadonnées complètes
-        doc_id = metadata.get("content_hash", hashlib.md5(
-            content.encode()).hexdigest())[:12]
+        content_sha256 = metadata.get("content_sha256") or hashlib.sha256(content.encode("utf-8")).hexdigest()
+        source = _identifier(metadata.get("source", "unknown"), "unknown")
+        path_hint = _identifier(metadata.get("filepath", metadata.get("title", "document")), "document")
+        document_id = metadata.get("document_id") or f"{source}_{path_hint}_{content_sha256[:12]}"
 
         chunks = []
         for idx, (section_title, chunk_text) in enumerate(raw_chunks):
@@ -116,8 +124,10 @@ class DocumentChunker:
 
             chunks.append({
                 "chunk_text": chunk_text,
-                "chunk_id": f"{doc_id}_c{idx:04d}",
+                "chunk_id": f"{document_id}_chunk_{idx:04d}",
+                "document_id": document_id,
                 "doc_source": metadata.get("source", "unknown"),
+                "source_version": metadata.get("source_version", "unknown"),
                 "doc_title": metadata.get("title", "Sans titre"),
                 "doc_filepath": metadata.get("filepath", ""),
                 "doc_url": metadata.get("url", ""),
@@ -125,6 +135,8 @@ class DocumentChunker:
                 "section_title": section_title or "",
                 "chunk_index": idx,
                 "total_chunks_in_doc": -1,
+                "content_sha256": content_sha256,
+                "chunk_content_sha256": hashlib.sha256(chunk_text.encode("utf-8")).hexdigest(),
                 "token_count": token_count,
                 "has_code": bool(re.search(r'\[CODE:', chunk_text)),
             })
