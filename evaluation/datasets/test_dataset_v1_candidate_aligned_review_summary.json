@@ -1,0 +1,13 @@
+{
+  "record_count": 120,
+  "revised_record_count": 22,
+  "retained_record_count": 98,
+  "domain_counts": {
+    "python": 40,
+    "scikit_learn": 40,
+    "langchain": 40
+  },
+  "status": "ai_prevalidated_pending_human_review",
+  "final_ragas_eligible": false,
+  "reason": "The record-level evidence is sourced from uploaded Kaggle candidates, but no human researcher has signed the annotations yet."
+}

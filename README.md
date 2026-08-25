@@ -169,6 +169,7 @@ Le notebook distingue strictement les jeux suivants :
 | `evaluation/datasets/dev_dataset_v1.jsonl` | Les 20 questions historiques, utilisées seulement pendant le développement. |
 | `evaluation/datasets/test_dataset_v1_annotation_template.csv` | Le plan équilibré de 120 questions finales à annoter manuellement. |
 | `evaluation/datasets/test_dataset_v1_source_grounded_draft.jsonl` | Les 120 questions avec références concises et URLs officielles ; elles restent à revoir humainement. |
+| `evaluation/datasets/test_dataset_v1_candidate_aligned_review.jsonl` | Jeu de revue de 120 questions créé à partir des candidats Kaggle déjà reçus ; chaque ligne possède des IDs de preuves mais reste en attente d'une validation humaine explicite. |
 | `evaluation/datasets/test_dataset_v1.jsonl` | Le test final validé et gelé, créé seulement après revue humaine. |
 
 Après avoir complété le CSV de 120 questions, convertissez-le avec :
@@ -182,6 +183,8 @@ python evaluation/convert_annotations.py \
 La conversion refuse un test final incomplet, non relu ou dépourvu d'identifiants de chunks de référence. Les règles détaillées se trouvent dans `evaluation/annotation_guidelines.md`.
 
 Pour accélérer l'annotation des identifiants de chunks, le notebook final peut générer `test_dataset_v1_candidates.jsonl` avec dix passages candidats par question. Il s'agit d'une aide à la revue : les IDs ne doivent jamais être acceptés automatiquement. La couverture des sources et les décisions de conception du banc de questions sont consignées dans `evaluation/question_bank_sources.md`.
+
+Lorsque des candidats ont déjà été générés dans Kaggle, `evaluation/build_candidate_aligned_review_dataset.py` permet de préparer une revue de 120 lignes sans exécuter de nouveau le notebook. Le script conserve les questions soutenues par une preuve directe et reformule seulement les questions sans preuve à partir d'extraits réellement disponibles. Le résultat et la procédure sont décrits dans `evaluation/CANDIDATE_ALIGNED_REVIEW_FR.md`. Il ne remplace pas la validation humaine ni `test_dataset_v1.jsonl`.
 
 ## Amélioration de la récupération
 

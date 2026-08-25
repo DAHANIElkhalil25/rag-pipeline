@@ -6,6 +6,7 @@ import pytest
 
 from evaluation.create_annotation_candidates import create_candidates
 from evaluation.dataset_schema import deterministic_id_scores, validate_gold_records
+from evaluation.build_candidate_aligned_review_dataset import REVISIONS
 
 
 def make_record(split="dev", review_status="needs_context_annotation", context_ids=None):
@@ -104,3 +105,10 @@ def test_annotation_candidates_forward_the_official_source_url_to_retrieval(tmp_
         "source_domain": "python",
         "source_urls": [source_url],
     }]
+
+
+def test_candidate_aligned_revisions_are_complete_and_each_has_explicit_evidence_ids():
+    assert len(REVISIONS) == 22
+    assert all(revision["user_input"].strip() for revision in REVISIONS.values())
+    assert all(revision["reference"].strip() for revision in REVISIONS.values())
+    assert all(revision["chunk_ids"] for revision in REVISIONS.values())
