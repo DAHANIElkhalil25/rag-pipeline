@@ -148,7 +148,7 @@ RETRIEVAL_PROFILES = {
             "enabled": True,
             "model_name": "BAAI/bge-reranker-v2-m3",
             "max_length": 512,
-            "unload_after_query": True,
+            "unload_after_query": False,
         },
     },
 }
