@@ -23,6 +23,10 @@ Exécutez les cellules dans l'ordre, de la cellule 1 à la cellule 8, ou utilise
 
 Après le premier lancement, envoyez dans le chat le fichier **`candidats_120_questions.jsonl`**. Il sera utilisé pour préparer le jeu de test final validé.
 
+## Rafraîchir uniquement les candidats si demandé
+
+Il ne s'agit **pas** d'un nouveau lancement complet. Si une mise à jour des candidats est demandée, ouvrez le même notebook et exécutez seulement les cellules **2**, **4** et **5**, dans cet ordre. La cellule 2 télécharge le code mis à jour sans effacer le dossier durable `/kaggle/working/rag_final_data`; la cellule 4 recharge l'index déjà créé; la cellule 5 régénère uniquement `candidats_120_questions.jsonl`. Envoyez ensuite ce nouveau fichier dans le chat.
+
 ## Second lancement : évaluation finale Ragas
 
 Effectuez ce lancement seulement après avoir reçu le fichier `test_dataset_v1.jsonl` validé et après avoir créé votre Secret Kaggle `OPENAI_API_KEY`.

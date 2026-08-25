@@ -411,6 +411,7 @@ class RAGPipeline:
         
         # Recherche FAISS (sémantique)
         candidate_k = max(k, int(self.search_config.get("candidate_k", k)))
+        allowed_source_urls = {str(url).rstrip("/") for url in source_urls or []}
         semantic_pool_k = min(
             len(self.chunks),
             max(candidate_k, candidate_k * 50 if source_urls else candidate_k),
@@ -433,7 +434,7 @@ class RAGPipeline:
             if not source_urls:
                 return True
             chunk_url = str(chunk.get("doc_url", "")).rstrip("/")
-            return chunk_url in {str(url).rstrip("/") for url in source_urls}
+            return chunk_url in allowed_source_urls
 
         def _matches_constraints(chunk: Dict[str, Any]) -> bool:
             return _matches_domain(chunk) and _matches_source_url(chunk)

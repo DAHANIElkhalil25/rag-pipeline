@@ -64,6 +64,7 @@ def test_deterministic_scores_are_absent_when_gold_context_ids_are_not_annotated
 class _CandidatePipeline:
     def __init__(self):
         self.calls = []
+        self.chunks = [{"doc_url": "https://docs.python.org/3/glossary.html"}]
 
     def retrieve(self, question, k, source_domain, source_urls):
         self.calls.append({

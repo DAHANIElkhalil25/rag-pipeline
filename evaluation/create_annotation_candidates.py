@@ -14,14 +14,28 @@ from evaluation.dataset_schema import read_jsonl, write_jsonl
 
 
 def create_candidates(pipeline, dataset_path: Path, output_path: Path, k: int = 10) -> None:
-    """Persist retrieval candidates; reviewers choose IDs rather than accepting them blindly."""
+    """Persist source-aware candidates; reviewers choose IDs rather than accepting them blindly."""
+    indexed_urls = {
+        str(chunk.get("doc_url", "")).rstrip("/")
+        for chunk in getattr(pipeline, "chunks", [])
+        if chunk.get("doc_url")
+    }
     rows = []
     for position, record in enumerate(read_jsonl(dataset_path), start=1):
+        official_urls = record.get("reference_source_urls", [])
+        matching_source_urls = [
+            url for url in official_urls
+            if str(url).rstrip("/") in indexed_urls
+        ]
+        # If the exact page is absent from the current corpus, keep the
+        # domain restriction rather than returning an empty candidate list.
+        # The output records this fact transparently for the reviewer.
+        source_urls = matching_source_urls or (official_urls if not indexed_urls else None)
         contexts = pipeline.retrieve(
             record["user_input"],
             k=k,
             source_domain=record["domain"],
-            source_urls=record.get("reference_source_urls"),
+            source_urls=source_urls,
         )
         rows.append({
             "question_id": record["question_id"],
@@ -29,6 +43,11 @@ def create_candidates(pipeline, dataset_path: Path, output_path: Path, k: int = 
             "user_input": record["user_input"],
             "reference": record["reference"],
             "reference_source_urls": record["reference_source_urls"],
+            "source_url_filter_applied": bool(source_urls),
+            "source_url_filter_reason": (
+                "exact_official_source_available_in_corpus"
+                if source_urls else "exact_official_source_absent_from_current_corpus"
+            ),
             "candidate_chunks": [
                 {
                     "rank": rank,
