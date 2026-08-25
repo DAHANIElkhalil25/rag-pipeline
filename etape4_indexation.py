@@ -34,6 +34,7 @@ Prérequis:
 
 import json
 import hashlib
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -50,7 +51,10 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from config import CLEAN_DIR, PROCESSED_DIR, METADATA_DIR, BENCHMARK_DIR, CONFIG, logger
+from config import (
+    CLEAN_DIR, PROCESSED_DIR, METADATA_DIR, BENCHMARK_DIR, CONFIG, logger,
+    DEFAULT_RETRIEVAL_PROFILE, RETRIEVAL_PROFILES,
+)
 from core.chunker import DocumentChunker
 from core.loaders import load_cleaned_documents, check_ml_dependencies
 
@@ -100,6 +104,12 @@ DEFAULT_CHUNK_CONFIG = {
     # ── Batch size pour l'embedding ──
     # Nombre de chunks encodés simultanément. Ajuster selon la RAM disponible.
     "embedding_batch_size": 64,
+    "embedding_query_prefix": "",
+    "embedding_passage_prefix": "",
+    "retrieval_profile": "baseline",
+    "candidate_k": 5,
+    "final_k": 5,
+    "reranker": {"enabled": False},
 }
 
 
@@ -117,6 +127,14 @@ def load_config_from_benchmark() -> Dict:
         Configuration du chunking et de l'embedding.
     """
     config = DEFAULT_CHUNK_CONFIG.copy()
+    profile_name = os.getenv("RAG_RETRIEVAL_PROFILE", DEFAULT_RETRIEVAL_PROFILE)
+    if profile_name not in RETRIEVAL_PROFILES:
+        raise ValueError(f"Profil retrieval inconnu: {profile_name}. Profils: {sorted(RETRIEVAL_PROFILES)}")
+    profile = RETRIEVAL_PROFILES[profile_name]
+    config.update({key: value for key, value in profile.items() if key != "reranker"})
+    config["reranker"] = profile["reranker"].copy()
+    config["retrieval_profile"] = profile_name
+    logger.info(f"Profil retrieval sélectionné: {profile_name}")
     report_path = BENCHMARK_DIR / "benchmark_report.json"
 
     if not report_path.exists():
@@ -137,7 +155,7 @@ def load_config_from_benchmark() -> Dict:
             logger.info(f"Config chunking depuis benchmark : "
                        f"taille={config['chunk_size_tokens']}, overlap={config['chunk_overlap_tokens']}")
 
-        if "embedding_model" in recommendations:
+        if "embedding_model" in recommendations and profile_name == "baseline":
             embed_rec = recommendations["embedding_model"]
             config["embedding_model"] = embed_rec.get("model", config["embedding_model"])
             logger.info(f"Modèle d'embedding depuis benchmark : {config['embedding_model']}")
@@ -185,7 +203,8 @@ def create_embeddings(chunks: List[Dict], config: Dict) -> np.ndarray:
     embedding_dim = model.get_sentence_embedding_dimension()
     logger.info(f"  Dimension des embeddings : {embedding_dim}")
 
-    texts = [chunk["chunk_text"] for chunk in chunks]
+    passage_prefix = config.get("embedding_passage_prefix", "")
+    texts = [passage_prefix + chunk["chunk_text"] for chunk in chunks]
     logger.info(f"Encoding de {len(texts)} chunks (batch_size={batch_size})...")
 
     embeddings = model.encode(
@@ -317,7 +336,8 @@ def test_search(index, chunks: List[Dict], config: Dict, n_tests: int = 5):
 
     for query in test_queries[:n_tests]:
         # Encoder la requête
-        query_vec = model.encode([query], normalize_embeddings=True)
+        query_prefix = config.get("embedding_query_prefix", "")
+        query_vec = model.encode([query_prefix + query], normalize_embeddings=True)
         query_vec = query_vec.astype(np.float32)
 
         # Rechercher les 3 chunks les plus proches

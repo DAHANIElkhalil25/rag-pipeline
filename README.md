@@ -168,6 +168,7 @@ Le notebook distingue strictement les jeux suivants :
 |---|---|
 | `evaluation/datasets/dev_dataset_v1.jsonl` | Les 20 questions historiques, utilisées seulement pendant le développement. |
 | `evaluation/datasets/test_dataset_v1_annotation_template.csv` | Le plan équilibré de 120 questions finales à annoter manuellement. |
+| `evaluation/datasets/test_dataset_v1_source_grounded_draft.jsonl` | Les 120 questions avec références concises et URLs officielles ; elles restent à revoir humainement. |
 | `evaluation/datasets/test_dataset_v1.jsonl` | Le test final validé et gelé, créé seulement après revue humaine. |
 
 Après avoir complété le CSV de 120 questions, convertissez-le avec :
@@ -179,6 +180,14 @@ python evaluation/convert_annotations.py \
 ```
 
 La conversion refuse un test final incomplet, non relu ou dépourvu d'identifiants de chunks de référence. Les règles détaillées se trouvent dans `evaluation/annotation_guidelines.md`.
+
+Pour accélérer l'annotation des identifiants de chunks, le notebook final peut générer `test_dataset_v1_candidates.jsonl` avec dix passages candidats par question. Il s'agit d'une aide à la revue : les IDs ne doivent jamais être acceptés automatiquement. La couverture des sources et les décisions de conception du banc de questions sont consignées dans `evaluation/question_bank_sources.md`.
+
+## Amélioration de la récupération
+
+Trois profils contrôlés sont disponibles avant l'indexation via `RAG_RETRIEVAL_PROFILE` : `baseline`, `multilingual_hybrid` et `multilingual_hybrid_rerank`. Le profil final par défaut utilise `intfloat/multilingual-e5-base` avec les préfixes requis `query: ` et `passage: `, récupère 20 candidats avec recherche hybride, puis applique `BAAI/bge-reranker-v2-m3` pour conserver les cinq meilleurs passages. L'index est reconstruit dès que le profil change afin de ne jamais interroger un index FAISS avec des embeddings incompatibles.
+
+Dans le notebook Kaggle, activez `RUN_RETRIEVAL_PROFILE_COMPARISON=True` uniquement pour comparer ces profils sur les 20 questions de développement. Conservez ensuite une seule configuration avant de préparer le test final. Les sources officielles justifiant ce choix sont documentées dans `evaluation/retrieval_improvement_evidence.md`.
 
 ## Évaluation Ragas officielle du système final
 

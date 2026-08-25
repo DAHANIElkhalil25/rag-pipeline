@@ -70,7 +70,24 @@ def load_search_config() -> Dict[str, Any]:
         "embedding_model": "all-MiniLM-L6-v2",
         "search_method": "semantic",
         "alpha": 0.7,
+        "embedding_query_prefix": "",
+        "candidate_k": LLM_CONFIG.get("top_k_retrieval", 5),
+        "final_k": LLM_CONFIG.get("top_k_retrieval", 5),
+        "reranker": {"enabled": False},
     }
+
+    manifest_path = VECTORSTORE_DIR / "index_manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            index_config = manifest.get("index_config", {})
+            for key in ("embedding_model", "search_method", "alpha", "embedding_query_prefix", "candidate_k", "final_k", "reranker", "retrieval_profile"):
+                if key in index_config:
+                    config[key] = index_config[key]
+            logger.info(f"Configuration chargée depuis le manifeste index : {config}")
+            return config
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning(f"Manifeste d'index invalide, repli benchmark : {exc}")
     
     if benchmark_path.exists():
         try:
@@ -318,6 +335,7 @@ class RAGPipeline:
         self.chunks = chunks
         self.embedding_model = embedding_model
         self.search_config = search_config
+        self._reranker = None
         
         # Initialisation de BM25 si la recherche hybride est configurée
         if self.search_config.get("search_method") == "hybrid":
@@ -326,6 +344,43 @@ class RAGPipeline:
             self.bm25 = SimpleBM25(texts)
         else:
             self.bm25 = None
+
+    def _load_reranker(self):
+        """Load the cross-encoder only when a profile explicitly enables it."""
+        if self._reranker is None:
+            from sentence_transformers import CrossEncoder
+            cfg = self.search_config.get("reranker", {})
+            model_name = cfg["model_name"]
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            logger.info(f"Chargement du reranker {model_name} sur {device}...")
+            self._reranker = CrossEncoder(model_name, max_length=cfg.get("max_length", 512), device=device)
+        return self._reranker
+
+    def _unload_reranker(self) -> None:
+        if self._reranker is not None:
+            del self._reranker
+            self._reranker = None
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    def _rerank(self, question: str, candidates: List[Dict[str, Any]], k: int) -> List[Dict[str, Any]]:
+        cfg = self.search_config.get("reranker", {})
+        if not cfg.get("enabled") or not candidates:
+            return candidates[:k]
+        reranker = self._load_reranker()
+        pairs = [(question, candidate.get("chunk_text", "")) for candidate in candidates]
+        scores = reranker.predict(pairs, show_progress_bar=False)
+        ranked = []
+        for candidate, score in zip(candidates, scores):
+            item = candidate.copy()
+            item["candidate_retrieval_score"] = item.get("retrieval_score")
+            item["reranker_score"] = float(score)
+            item["retrieval_score"] = float(score)
+            ranked.append(item)
+        ranked.sort(key=lambda item: item["reranker_score"], reverse=True)
+        if cfg.get("unload_after_query", False):
+            self._unload_reranker()
+        return ranked[:k]
 
     def retrieve(self, question: str, k: int = 5) -> List[Dict[str, Any]]:
         """
@@ -339,11 +394,13 @@ class RAGPipeline:
             List[Dict[str, Any]]: Les fragments récupérés enrichis d'un score de pertinence.
         """
         # Encodage sémantique
-        query_embedding = self.embedding_model.encode([question], convert_to_numpy=True).astype(np.float32)
+        query_prefix = self.search_config.get("embedding_query_prefix", "")
+        query_embedding = self.embedding_model.encode([query_prefix + question], convert_to_numpy=True).astype(np.float32)
         faiss.normalize_L2(query_embedding)
         
         # Recherche FAISS (sémantique)
-        sem_scores_batch, sem_indices_batch = self.index.search(query_embedding, k * 2)
+        candidate_k = max(k, int(self.search_config.get("candidate_k", k)))
+        sem_scores_batch, sem_indices_batch = self.index.search(query_embedding, candidate_k)
         sem_scores = sem_scores_batch[0]
         sem_indices = sem_indices_batch[0]
         
@@ -374,7 +431,7 @@ class RAGPipeline:
                 return (arr - mn) / (mx - mn + 1e-10)
 
             hybrid_scores = alpha * _norm(sem_full) + (1 - alpha) * _norm(bm25_full)
-            top_k_idx = np.argsort(hybrid_scores)[::-1][:k]
+            top_k_idx = np.argsort(hybrid_scores)[::-1][:candidate_k]
 
             for idx in top_k_idx:
                 if 0 <= idx < n:
@@ -390,7 +447,7 @@ class RAGPipeline:
                     chunk["retrieval_score"] = float(score)
                     results.append(chunk)
                     
-        return results
+        return self._rerank(question, results, k)
 
     def get_prompt_contexts(self, contexts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Return the exact ranked text windows that will be inserted into the prompt."""
@@ -459,7 +516,7 @@ class RAGPipeline:
         Returns:
             Dict[str, Any]: Dictionnaire contenant question, réponse et sources.
         """
-        k = LLM_CONFIG.get("top_k_retrieval", 5)
+        k = int(self.search_config.get("final_k", LLM_CONFIG.get("top_k_retrieval", 5)))
         contexts = self.retrieve(question, k=k)
         
         if not contexts:

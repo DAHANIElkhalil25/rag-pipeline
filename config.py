@@ -113,6 +113,47 @@ RAGAS_CONFIG = {
     "judge_mode": "external_or_adapter",
 }
 
+# Controlled retrieval profiles. Set RAG_RETRIEVAL_PROFILE before indexing;
+# the selected profile is persisted in the index manifest for reproducibility.
+RETRIEVAL_PROFILES = {
+    "baseline": {
+        "embedding_model": "all-MiniLM-L6-v2",
+        "embedding_query_prefix": "",
+        "embedding_passage_prefix": "",
+        "search_method": "hybrid",
+        "alpha": 0.7,
+        "candidate_k": 5,
+        "final_k": 5,
+        "reranker": {"enabled": False},
+    },
+    "multilingual_hybrid": {
+        "embedding_model": "intfloat/multilingual-e5-base",
+        "embedding_query_prefix": "query: ",
+        "embedding_passage_prefix": "passage: ",
+        "search_method": "hybrid",
+        "alpha": 0.7,
+        "candidate_k": 20,
+        "final_k": 5,
+        "reranker": {"enabled": False},
+    },
+    "multilingual_hybrid_rerank": {
+        "embedding_model": "intfloat/multilingual-e5-base",
+        "embedding_query_prefix": "query: ",
+        "embedding_passage_prefix": "passage: ",
+        "search_method": "hybrid",
+        "alpha": 0.7,
+        "candidate_k": 20,
+        "final_k": 5,
+        "reranker": {
+            "enabled": True,
+            "model_name": "BAAI/bge-reranker-v2-m3",
+            "max_length": 512,
+            "unload_after_query": True,
+        },
+    },
+}
+DEFAULT_RETRIEVAL_PROFILE = "multilingual_hybrid_rerank"
+
 # Configuration de l'interface Gradio destinée à Kaggle.
 UI_CONFIG = {
     "share": True,
