@@ -382,7 +382,13 @@ class RAGPipeline:
             self._unload_reranker()
         return ranked[:k]
 
-    def retrieve(self, question: str, k: int = 5, source_domain: Optional[str] = None) -> List[Dict[str, Any]]:
+    def retrieve(
+        self,
+        question: str,
+        k: int = 5,
+        source_domain: Optional[str] = None,
+        source_urls: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Récupère les fragments documentaires les plus pertinents pour une question.
         
@@ -392,6 +398,8 @@ class RAGPipeline:
             source_domain (str, optional): Domaine documentaire imposé pour
                 l'annotation d'un jeu de test (`python`, `scikit_learn` ou
                 `langchain`). Les questions ordinaires n'utilisent aucun filtre.
+            source_urls (list[str], optional): URLs documentaires officielles
+                imposées lors de la recherche de preuves pour l'annotation.
             
         Returns:
             List[Dict[str, Any]]: Les fragments récupérés enrichis d'un score de pertinence.
@@ -403,7 +411,11 @@ class RAGPipeline:
         
         # Recherche FAISS (sémantique)
         candidate_k = max(k, int(self.search_config.get("candidate_k", k)))
-        sem_scores_batch, sem_indices_batch = self.index.search(query_embedding, candidate_k)
+        semantic_pool_k = min(
+            len(self.chunks),
+            max(candidate_k, candidate_k * 50 if source_urls else candidate_k),
+        )
+        sem_scores_batch, sem_indices_batch = self.index.search(query_embedding, semantic_pool_k)
         sem_scores = sem_scores_batch[0]
         sem_indices = sem_indices_batch[0]
         
@@ -416,6 +428,15 @@ class RAGPipeline:
             identifier = str(chunk.get("chunk_id", ""))
             prefixes = {"python": "python_", "scikit_learn": "sklearn_", "langchain": "langchain_"}
             return identifier.startswith(prefixes.get(source_domain, "__no_match__"))
+
+        def _matches_source_url(chunk: Dict[str, Any]) -> bool:
+            if not source_urls:
+                return True
+            chunk_url = str(chunk.get("doc_url", "")).rstrip("/")
+            return chunk_url in {str(url).rstrip("/") for url in source_urls}
+
+        def _matches_constraints(chunk: Dict[str, Any]) -> bool:
+            return _matches_domain(chunk) and _matches_source_url(chunk)
 
         if search_method == "hybrid" and self.bm25 is not None:
             # Recherche hybride : fusion sémantique + BM25
@@ -442,7 +463,7 @@ class RAGPipeline:
 
             hybrid_scores = alpha * _norm(sem_full) + (1 - alpha) * _norm(bm25_full)
             ranked_indices = np.argsort(hybrid_scores)[::-1]
-            top_k_idx = [idx for idx in ranked_indices if _matches_domain(self.chunks[idx])][:candidate_k]
+            top_k_idx = [idx for idx in ranked_indices if _matches_constraints(self.chunks[idx])][:candidate_k]
 
             for idx in top_k_idx:
                 if 0 <= idx < n:
@@ -455,7 +476,7 @@ class RAGPipeline:
             for idx, score in zip(sem_indices, sem_scores):
                 if 0 <= idx < len(self.chunks):
                     chunk = self.chunks[idx].copy()
-                    if not _matches_domain(chunk):
+                    if not _matches_constraints(chunk):
                         continue
                     chunk["retrieval_score"] = float(score)
                     results.append(chunk)

@@ -1,7 +1,10 @@
 """Regression tests for final-system evaluation artifacts without ML dependencies."""
 
+import json
+
 import pytest
 
+from evaluation.create_annotation_candidates import create_candidates
 from evaluation.dataset_schema import deterministic_id_scores, validate_gold_records
 
 
@@ -56,3 +59,47 @@ def test_deterministic_scores_are_absent_when_gold_context_ids_are_not_annotated
         "id_context_precision": None,
         "id_context_recall": None,
     }
+
+
+class _CandidatePipeline:
+    def __init__(self):
+        self.calls = []
+
+    def retrieve(self, question, k, source_domain, source_urls):
+        self.calls.append({
+            "question": question,
+            "k": k,
+            "source_domain": source_domain,
+            "source_urls": source_urls,
+        })
+        return [{
+            "chunk_id": "python_glossary_chunk_001",
+            "document_id": "python_glossary",
+            "doc_url": source_urls[0],
+            "doc_section": "other",
+            "retrieval_score": 0.9,
+            "chunk_text": "An iterator yields successive values and raises StopIteration.",
+        }]
+
+
+def test_annotation_candidates_forward_the_official_source_url_to_retrieval(tmp_path):
+    dataset_path = tmp_path / "draft.jsonl"
+    output_path = tmp_path / "candidates.jsonl"
+    source_url = "https://docs.python.org/3/glossary.html"
+    dataset_path.write_text(json.dumps({
+        "question_id": "test_python_001",
+        "domain": "python",
+        "user_input": "Définir un itérateur",
+        "reference": "Un itérateur fournit des valeurs successives.",
+        "reference_source_urls": [source_url],
+    }) + "\n", encoding="utf-8")
+    pipeline = _CandidatePipeline()
+
+    create_candidates(pipeline, dataset_path, output_path, k=4)
+
+    assert pipeline.calls == [{
+        "question": "Définir un itérateur",
+        "k": 4,
+        "source_domain": "python",
+        "source_urls": [source_url],
+    }]

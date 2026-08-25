@@ -17,7 +17,12 @@ def create_candidates(pipeline, dataset_path: Path, output_path: Path, k: int = 
     """Persist retrieval candidates; reviewers choose IDs rather than accepting them blindly."""
     rows = []
     for position, record in enumerate(read_jsonl(dataset_path), start=1):
-        contexts = pipeline.retrieve(record["user_input"], k=k, source_domain=record["domain"])
+        contexts = pipeline.retrieve(
+            record["user_input"],
+            k=k,
+            source_domain=record["domain"],
+            source_urls=record.get("reference_source_urls"),
+        )
         rows.append({
             "question_id": record["question_id"],
             "domain": record["domain"],
