@@ -382,13 +382,16 @@ class RAGPipeline:
             self._unload_reranker()
         return ranked[:k]
 
-    def retrieve(self, question: str, k: int = 5) -> List[Dict[str, Any]]:
+    def retrieve(self, question: str, k: int = 5, source_domain: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Récupère les fragments documentaires les plus pertinents pour une question.
         
         Args:
             question (str): La question de l'utilisateur.
             k (int, optional): Le nombre de documents à récupérer. Par défaut 5.
+            source_domain (str, optional): Domaine documentaire imposé pour
+                l'annotation d'un jeu de test (`python`, `scikit_learn` ou
+                `langchain`). Les questions ordinaires n'utilisent aucun filtre.
             
         Returns:
             List[Dict[str, Any]]: Les fragments récupérés enrichis d'un score de pertinence.
@@ -407,6 +410,13 @@ class RAGPipeline:
         results = []
         search_method = self.search_config.get("search_method", "semantic")
         
+        def _matches_domain(chunk: Dict[str, Any]) -> bool:
+            if source_domain is None:
+                return True
+            identifier = str(chunk.get("chunk_id", ""))
+            prefixes = {"python": "python_", "scikit_learn": "sklearn_", "langchain": "langchain_"}
+            return identifier.startswith(prefixes.get(source_domain, "__no_match__"))
+
         if search_method == "hybrid" and self.bm25 is not None:
             # Recherche hybride : fusion sémantique + BM25
             # Réf. Gao et al. (2024) : la recherche hybride surpasse
@@ -431,7 +441,8 @@ class RAGPipeline:
                 return (arr - mn) / (mx - mn + 1e-10)
 
             hybrid_scores = alpha * _norm(sem_full) + (1 - alpha) * _norm(bm25_full)
-            top_k_idx = np.argsort(hybrid_scores)[::-1][:candidate_k]
+            ranked_indices = np.argsort(hybrid_scores)[::-1]
+            top_k_idx = [idx for idx in ranked_indices if _matches_domain(self.chunks[idx])][:candidate_k]
 
             for idx in top_k_idx:
                 if 0 <= idx < n:
@@ -441,11 +452,15 @@ class RAGPipeline:
                 
         else:
             # Sémantique uniquement
-            for idx, score in zip(sem_indices[:k], sem_scores[:k]):
+            for idx, score in zip(sem_indices, sem_scores):
                 if 0 <= idx < len(self.chunks):
                     chunk = self.chunks[idx].copy()
+                    if not _matches_domain(chunk):
+                        continue
                     chunk["retrieval_score"] = float(score)
                     results.append(chunk)
+                    if len(results) >= candidate_k:
+                        break
                     
         return self._rerank(question, results, k)
 
