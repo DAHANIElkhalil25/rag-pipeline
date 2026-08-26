@@ -35,3 +35,9 @@
 - [x] Remplacer la sous-classe Pydantic incompatible par un adaptateur concret Ragas indépendant.
 - [x] Tester réellement la construction de l’adaptateur et de AnswerRelevancy avant toute reprise Kaggle.
 - [x] Publier la correction et ne donner une reprise qu’après ce test.
+
+# Correction de la cellule de mise à jour Kaggle
+
+- [x] Placer explicitement le processus dans `/kaggle/working` avant de remplacer le dossier cloné.
+- [x] Rendre la mise à jour du dépôt idempotente et sans suppression du répertoire actif.
+- [ ] Vérifier le notebook corrigé et ne donner qu’une reprise finale courte.
