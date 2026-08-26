@@ -11,4 +11,4 @@
 - [x] Définir et publier les critères de validation experte assistée par IA.
 - [x] Contrôler les 120 questions, réponses, URLs et identifiants de chunks contre les candidats Kaggle reçus.
 - [x] Geler le jeu final avec une provenance de validation explicite et non trompeuse.
-- [ ] Publier le jeu final et les contrôles, puis donner l’unique étape Kaggle pour Ragas.
+- [x] Publier le jeu final et les contrôles, puis donner l’unique étape Kaggle pour Ragas.
