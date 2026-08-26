@@ -15,7 +15,7 @@
 
 # Correction de l’exécution Ragas finale
 
-- [ ] Diagnostiquer l’adaptateur d’embeddings incompatible avec Ragas 0.4.3 dans Kaggle.
-- [ ] Remplacer ou encapsuler l’adaptateur afin de fournir les méthodes asynchrones requises.
-- [ ] Ajouter un test de non-régression et mettre à jour le notebook français si nécessaire.
-- [ ] Publier la correction et donner une reprise limitée au mode EVALUATION_FINALE.
+- [x] Diagnostiquer l’adaptateur d’embeddings incompatible avec Ragas 0.4.3 dans Kaggle.
+- [x] Remplacer ou encapsuler l’adaptateur afin de fournir les méthodes asynchrones requises.
+- [x] Ajouter un test de non-régression et mettre à jour le notebook français si nécessaire.
+- [x] Publier la correction et donner une reprise limitée au mode EVALUATION_FINALE.
