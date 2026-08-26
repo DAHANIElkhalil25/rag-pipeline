@@ -34,4 +34,4 @@
 
 - [x] Remplacer la sous-classe Pydantic incompatible par un adaptateur concret Ragas indépendant.
 - [x] Tester réellement la construction de l’adaptateur et de AnswerRelevancy avant toute reprise Kaggle.
-- [ ] Publier la correction et ne donner une reprise qu’après ce test.
+- [x] Publier la correction et ne donner une reprise qu’après ce test.
