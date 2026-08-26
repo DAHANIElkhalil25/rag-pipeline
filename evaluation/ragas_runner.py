@@ -133,8 +133,17 @@ def build_judge(provider: str, model: str, api_key: str):
         # client makes every metric fail before scoring begins.
         return llm_factory(model, provider="openai", client=AsyncOpenAI(api_key=api_key))
     if provider == "mistral":
-        from mistralai import Mistral
-        return llm_factory(model, provider="mistral", client=Mistral(api_key=api_key))
+        from openai import AsyncOpenAI
+
+        # Ragas 0.4.3 expects a legacy native Mistral client interface that is
+        # absent from the current SDK. Mistral documents OpenAI-compatible chat
+        # completions, so use that asynchronous endpoint while retaining Mistral
+        # as the actual evaluation provider and model host.
+        return llm_factory(
+            model,
+            provider="openai",
+            client=AsyncOpenAI(api_key=api_key, base_url="https://api.mistral.ai/v1"),
+        )
     raise ValueError("Provider non supporté. Utilisez 'openai' ou 'mistral'.")
 
 

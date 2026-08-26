@@ -58,3 +58,19 @@
 - [x] Remplacer uniquement le client OpenAI synchrone par `AsyncOpenAI` dans le juge Ragas.
 - [x] Tester que les métriques Ragas reçoivent un client asynchrone compatible.
 - [ ] Publier la correction et préparer une reprise finale sans préparation.
+
+# Alternative sans quota OpenAI
+
+- [ ] Vérifier les juges Ragas gratuits, à crédits d’essai ou locaux compatibles avec Kaggle.
+- [ ] Comparer leur faisabilité sur le GPU Kaggle et leur valeur académique.
+- [ ] Obtenir l’accord de l’étudiant avant toute intégration d’une alternative.
+
+# Intégration Mistral autorisée
+
+- [x] Vérifier le client Mistral asynchrone compatible avec Ragas.
+- [x] Adapter uniquement le provider Mistral du juge et ajouter un test de non-régression.
+- [ ] Publier la correction et donner les paramètres Kaggle Mistral sans relancer la préparation.
+
+## Accord explicite
+
+L’étudiant a autorisé le 26 août 2026 l’utilisation de l’interface compatible OpenAI de Mistral, avec client asynchrone, uniquement pour le juge Ragas.
