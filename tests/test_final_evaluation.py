@@ -170,3 +170,8 @@ def test_ragas_metrics_construct_with_the_independent_embedding_adapter():
         "context_recall",
         "factual_correctness",
     }
+
+
+def test_openai_ragas_judge_uses_an_asynchronous_client():
+    judge = build_judge("openai", "gpt-4o-mini", "test-key-used-for-construction-only")
+    assert judge.is_async is True

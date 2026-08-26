@@ -41,3 +41,20 @@
 - [x] Placer explicitement le processus dans `/kaggle/working` avant de remplacer le dossier cloné.
 - [x] Rendre la mise à jour du dépôt idempotente et sans suppression du répertoire actif.
 - [ ] Vérifier le notebook corrigé et ne donner qu’une reprise finale courte.
+
+# Accord préalable sur les corrections
+
+- [ ] Expliquer chaque changement de code ou de notebook, sa cause et son impact avant de le proposer.
+- [ ] Obtenir l’accord explicite de l’étudiant avant toute nouvelle modification.
+
+# Diagnostic du résultat Ragas incomplet
+
+- [ ] Préserver et expliquer les métriques déterministes de récupération valides du run final.
+- [ ] Lire les erreurs par échantillon Ragas avant de conclure sur les métriques génératives.
+- [ ] Présenter une correction seulement après explication et accord explicite de l’étudiant.
+
+# Correction autorisée du client Ragas
+
+- [x] Remplacer uniquement le client OpenAI synchrone par `AsyncOpenAI` dans le juge Ragas.
+- [x] Tester que les métriques Ragas reçoivent un client asynchrone compatible.
+- [ ] Publier la correction et préparer une reprise finale sans préparation.

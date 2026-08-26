@@ -127,8 +127,11 @@ def build_judge(provider: str, model: str, api_key: str):
 
     provider = provider.lower().strip()
     if provider == "openai":
-        from openai import OpenAI
-        return llm_factory(model, provider="openai", client=OpenAI(api_key=api_key))
+        from openai import AsyncOpenAI
+
+        # Ragas collection metrics invoke agenerate(); a synchronous OpenAI
+        # client makes every metric fail before scoring begins.
+        return llm_factory(model, provider="openai", client=AsyncOpenAI(api_key=api_key))
     if provider == "mistral":
         from mistralai import Mistral
         return llm_factory(model, provider="mistral", client=Mistral(api_key=api_key))
