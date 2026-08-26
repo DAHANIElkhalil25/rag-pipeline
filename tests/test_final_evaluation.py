@@ -1,5 +1,6 @@
 """Regression tests for final-system evaluation artifacts without ML dependencies."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -8,7 +9,7 @@ import pytest
 from evaluation.create_annotation_candidates import create_candidates
 from evaluation.dataset_schema import deterministic_id_scores, read_jsonl, validate_gold_records
 from evaluation.build_candidate_aligned_review_dataset import REVISIONS
-from evaluation.ragas_runner import _async_huggingface_embeddings_class
+from evaluation.ragas_runner import _sentence_transformer_ragas_embeddings_class, build_judge, build_metrics
 
 
 def make_record(split="dev", review_status="needs_context_annotation", context_ids=None):
@@ -129,8 +130,43 @@ def test_frozen_final_dataset_is_complete_balanced_and_schema_validated():
     assert all(row["reference_context_ids"] for row in rows)
 
 
-def test_ragas_huggingface_embedding_adapter_is_concrete_with_async_methods():
-    adapter_class = _async_huggingface_embeddings_class()
+class _FakeVectors:
+    def tolist(self):
+        return [[0.1, 0.2], [0.3, 0.4]]
+
+
+class _FakeSentenceTransformer:
+    def __init__(self):
+        self.calls = []
+
+    def encode(self, texts, normalize_embeddings, convert_to_numpy):
+        self.calls.append((texts, normalize_embeddings, convert_to_numpy))
+        return _FakeVectors()
+
+
+def test_ragas_sentence_transformer_adapter_is_concrete_and_supports_modern_async_methods():
+    adapter_class = _sentence_transformer_ragas_embeddings_class()
     assert adapter_class.__abstractmethods__ == frozenset()
-    assert hasattr(adapter_class, "aembed_query")
-    assert hasattr(adapter_class, "aembed_documents")
+    model = _FakeSentenceTransformer()
+    adapter = adapter_class(model_name="mock-model", model=model)
+    assert adapter.embed_texts(["a", "b"]) == [[0.1, 0.2], [0.3, 0.4]]
+    assert asyncio.run(adapter.aembed_text("question")) == [0.1, 0.2]
+    assert model.calls == [
+        (["a", "b"], True, True),
+        (["question"], True, True),
+    ]
+
+
+def test_ragas_metrics_construct_with_the_independent_embedding_adapter():
+    metrics = build_metrics(
+        build_judge("openai", "gpt-4o-mini", "test-key-used-for-construction-only"),
+        "mock-model",
+        embedding_model=_FakeSentenceTransformer(),
+    )
+    assert set(metrics) == {
+        "faithfulness",
+        "answer_relevancy",
+        "context_precision",
+        "context_recall",
+        "factual_correctness",
+    }

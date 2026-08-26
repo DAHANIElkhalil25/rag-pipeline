@@ -45,24 +45,46 @@ METRIC_FIELDS = {
 }
 
 
-def _async_huggingface_embeddings_class():
-    """Return a concrete Ragas 0.4.x Hugging Face embedding adapter.
+def _sentence_transformer_ragas_embeddings_class():
+    """Return a concrete *modern* Ragas embedding adapter.
 
-    Ragas 0.4.3 provides synchronous Hugging Face embedding methods but leaves
-    the asynchronous methods abstract, so its collection metrics reject direct
-    construction. This subclass keeps the official implementation and bridges
-    the two required asynchronous calls without changing model behaviour.
+    Ragas 0.4.3 collection metrics require ``BaseRagasEmbedding`` (singular),
+    whereas the packaged Hugging Face class implements the older, abstract
+    ``BaseRagasEmbeddings`` interface and is additionally constrained by a
+    Pydantic dataclass. This adapter implements the modern official contract,
+    reuses the SentenceTransformer already loaded by the RAG pipeline, and
+    avoids both compatibility failures and a duplicate GPU model load.
     """
-    from ragas.embeddings import HuggingfaceEmbeddings
+    from ragas.embeddings import BaseRagasEmbedding
 
-    class AsyncHuggingfaceEmbeddings(HuggingfaceEmbeddings):
-        async def aembed_query(self, text: str) -> list[float]:
-            return await asyncio.to_thread(self.embed_query, text)
+    class SentenceTransformerRagasEmbeddings(BaseRagasEmbedding):
+        def __init__(self, model_name: str, model: Any | None = None):
+            super().__init__()
+            self.model_name = model_name
+            if model is None:
+                from sentence_transformers import SentenceTransformer
 
-        async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
-            return await asyncio.to_thread(self.embed_documents, texts)
+                model = SentenceTransformer(model_name)
+            self.model = model
 
-    return AsyncHuggingfaceEmbeddings
+        def embed_text(self, text: str, **_: Any) -> list[float]:
+            return self.embed_texts([text])[0]
+
+        def embed_texts(self, texts: list[str], **_: Any) -> list[list[float]]:
+            vectors = self.model.encode(
+                texts,
+                normalize_embeddings=True,
+                convert_to_numpy=True,
+            )
+            return vectors.tolist()
+
+        async def aembed_text(self, text: str, **_: Any) -> list[float]:
+            return await asyncio.to_thread(self.embed_text, text)
+
+        async def aembed_texts(self, texts: list[str], **_: Any) -> list[list[float]]:
+            return await asyncio.to_thread(self.embed_texts, texts)
+
+    return SentenceTransformerRagasEmbeddings
 
 
 def _package_version(name: str) -> str | None:
@@ -89,7 +111,7 @@ def _manifest(run_id: str, dataset_path: Path, provider: str, judge_model: str, 
             name: _package_version(name)
             for name in ("ragas", "torch", "transformers", "sentence-transformers", "faiss-cpu")
         },
-        "ragas_embedding_adapter": "async_huggingface_embeddings_bridge_v1",
+        "ragas_embedding_adapter": "sentence_transformer_base_ragas_adapter_v2",
     }
 
 
@@ -113,7 +135,7 @@ def build_judge(provider: str, model: str, api_key: str):
     raise ValueError("Provider non supporté. Utilisez 'openai' ou 'mistral'.")
 
 
-def build_metrics(judge_llm, embedding_model_name: str) -> dict[str, Any]:
+def build_metrics(judge_llm, embedding_model_name: str, embedding_model: Any | None = None) -> dict[str, Any]:
     """Instantiate official Ragas collection metrics for a final experiment."""
     from ragas.metrics.collections import (
         AnswerRelevancy,
@@ -123,7 +145,10 @@ def build_metrics(judge_llm, embedding_model_name: str) -> dict[str, Any]:
         Faithfulness,
     )
 
-    evaluator_embeddings = _async_huggingface_embeddings_class()(model_name=embedding_model_name)
+    evaluator_embeddings = _sentence_transformer_ragas_embeddings_class()(
+        model_name=embedding_model_name,
+        model=embedding_model,
+    )
     return {
         "faithfulness": Faithfulness(llm=judge_llm),
         "answer_relevancy": AnswerRelevancy(llm=judge_llm, embeddings=evaluator_embeddings),
@@ -279,7 +304,11 @@ async def run_final_evaluation(
     completed = {record["question_id"]: record for record in read_jsonl(samples_path)} if samples_path.exists() else {}
     judge_llm = build_judge(provider, judge_model, api_key)
     embedding_model_name = pipeline.search_config.get("embedding_model", "all-MiniLM-L6-v2")
-    metrics = build_metrics(judge_llm, embedding_model_name)
+    metrics = build_metrics(
+        judge_llm,
+        embedding_model_name,
+        embedding_model=getattr(pipeline, "embedding_model", None),
+    )
     checkpoint_every = int(RAGAS_CONFIG.get("checkpoint_every", 10))
 
     for position, gold in enumerate(gold_records, start=1):
