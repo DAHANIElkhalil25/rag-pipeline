@@ -5,3 +5,10 @@
 - [x] Réviser seulement ces questions et leurs réponses de référence à partir de passages réels du corpus candidat.
 - [x] Produire un fichier de revue de 120 enregistrements traçables, sans déclarer prématurément une validation humaine.
 - [x] Ajouter les artefacts et contrôles au dépôt, puis expliquer la suite sans demander un nouveau lancement Kaggle.
+
+# Validation experte demandée par l’étudiant
+
+- [x] Définir et publier les critères de validation experte assistée par IA.
+- [x] Contrôler les 120 questions, réponses, URLs et identifiants de chunks contre les candidats Kaggle reçus.
+- [x] Geler le jeu final avec une provenance de validation explicite et non trompeuse.
+- [ ] Publier le jeu final et les contrôles, puis donner l’unique étape Kaggle pour Ragas.

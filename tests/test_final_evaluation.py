@@ -1,11 +1,12 @@
 """Regression tests for final-system evaluation artifacts without ML dependencies."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from evaluation.create_annotation_candidates import create_candidates
-from evaluation.dataset_schema import deterministic_id_scores, validate_gold_records
+from evaluation.dataset_schema import deterministic_id_scores, read_jsonl, validate_gold_records
 from evaluation.build_candidate_aligned_review_dataset import REVISIONS
 
 
@@ -112,3 +113,16 @@ def test_candidate_aligned_revisions_are_complete_and_each_has_explicit_evidence
     assert all(revision["user_input"].strip() for revision in REVISIONS.values())
     assert all(revision["reference"].strip() for revision in REVISIONS.values())
     assert all(revision["chunk_ids"] for revision in REVISIONS.values())
+
+
+def test_frozen_final_dataset_is_complete_balanced_and_schema_validated():
+    dataset_path = Path(__file__).resolve().parents[1] / "evaluation" / "datasets" / "test_dataset_v1.jsonl"
+    rows = read_jsonl(dataset_path)
+    validate_gold_records(rows, require_validated=True)
+    assert len(rows) == 120
+    assert {domain: sum(row["domain"] == domain for row in rows) for domain in ("python", "scikit_learn", "langchain")} == {
+        "python": 40,
+        "scikit_learn": 40,
+        "langchain": 40,
+    }
+    assert all(row["reference_context_ids"] for row in rows)

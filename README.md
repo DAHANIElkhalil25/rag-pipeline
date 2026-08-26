@@ -158,7 +158,7 @@ Les fichiers d'évaluation comprennent `ragas_report.json`, `ragas_details.csv`,
 
 ## Système final et notebook Kaggle séparé
 
-Utilisez `notebooks/final_kaggle_rag_system_v2.ipynb` pour le système final. Ce notebook reconstruit le corpus et l'index final, applique réellement le dédoublonnage, produit un manifeste d'index, sauvegarde les fenêtres de contexte exactes fournies au générateur et lance l'évaluation officielle Ragas v0.4.3 sans modifier la baseline.
+Utilisez `notebooks/notebook_final_rag_fr.ipynb` pour le système final. Ce notebook en français exécute les étapes du projet, produit un manifeste d'index, sauvegarde les fenêtres de contexte exactes fournies au générateur et lance l'évaluation officielle Ragas v0.4.3 sans modifier la baseline.
 
 Dans Kaggle, activez Internet et un GPU T4. Pour lancer Ragas, créez un Kaggle Secret nommé `OPENAI_API_KEY` ou `MISTRAL_API_KEY`, sélectionnez le provider et le modèle juge dans la cellule de configuration, puis activez `RUN_OFFICIAL_RAGAS`. La clé ne doit jamais être écrite dans le notebook ni dans le dépôt.
 
@@ -170,7 +170,7 @@ Le notebook distingue strictement les jeux suivants :
 | `evaluation/datasets/test_dataset_v1_annotation_template.csv` | Le plan équilibré de 120 questions finales à annoter manuellement. |
 | `evaluation/datasets/test_dataset_v1_source_grounded_draft.jsonl` | Les 120 questions avec références concises et URLs officielles ; elles restent à revoir humainement. |
 | `evaluation/datasets/test_dataset_v1_candidate_aligned_review.jsonl` | Jeu de revue de 120 questions créé à partir des candidats Kaggle déjà reçus ; chaque ligne possède des IDs de preuves mais reste en attente d'une validation humaine explicite. |
-| `evaluation/datasets/test_dataset_v1.jsonl` | Le test final validé et gelé, créé seulement après revue humaine. |
+| `evaluation/datasets/test_dataset_v1.jsonl` | Le test final validé et gelé par le protocole de validation experte IA documenté ; ses limites doivent être déclarées dans le rapport. |
 
 Après avoir complété le CSV de 120 questions, convertissez-le avec :
 
@@ -181,6 +181,8 @@ python evaluation/convert_annotations.py \
 ```
 
 La conversion refuse un test final incomplet, non relu ou dépourvu d'identifiants de chunks de référence. Les règles détaillées se trouvent dans `evaluation/annotation_guidelines.md`.
+
+Le jeu final déjà préparé pour ce projet est `evaluation/datasets/test_dataset_v1.jsonl`. Il a été gelé sans nouvelle exécution Kaggle à partir des candidats reçus et du protocole `evaluation/VALIDATION_EXPERTE_IA_FR.md`. Pour obtenir les métriques finales, utilisez directement le mode `EVALUATION_FINALE` du notebook français ; ne relancez pas la préparation.
 
 Pour accélérer l'annotation des identifiants de chunks, le notebook final peut générer `test_dataset_v1_candidates.jsonl` avec dix passages candidats par question. Il s'agit d'une aide à la revue : les IDs ne doivent jamais être acceptés automatiquement. La couverture des sources et les décisions de conception du banc de questions sont consignées dans `evaluation/question_bank_sources.md`.
 
