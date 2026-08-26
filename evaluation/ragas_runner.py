@@ -20,18 +20,20 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from config import EVALUATION_RUNS_DIR, RAGAS_CONFIG
-from etape5_generation import RAGPipeline
 from evaluation.dataset_schema import (
     deterministic_id_scores,
     read_jsonl,
     validate_gold_records,
     write_jsonl,
 )
+
+if TYPE_CHECKING:
+    from etape5_generation import RAGPipeline
 
 
 METRIC_FIELDS = {
@@ -41,6 +43,26 @@ METRIC_FIELDS = {
     "context_recall": ("user_input", "retrieved_contexts", "reference"),
     "factual_correctness": ("response", "reference"),
 }
+
+
+def _async_huggingface_embeddings_class():
+    """Return a concrete Ragas 0.4.x Hugging Face embedding adapter.
+
+    Ragas 0.4.3 provides synchronous Hugging Face embedding methods but leaves
+    the asynchronous methods abstract, so its collection metrics reject direct
+    construction. This subclass keeps the official implementation and bridges
+    the two required asynchronous calls without changing model behaviour.
+    """
+    from ragas.embeddings import HuggingfaceEmbeddings
+
+    class AsyncHuggingfaceEmbeddings(HuggingfaceEmbeddings):
+        async def aembed_query(self, text: str) -> list[float]:
+            return await asyncio.to_thread(self.embed_query, text)
+
+        async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
+            return await asyncio.to_thread(self.embed_documents, texts)
+
+    return AsyncHuggingfaceEmbeddings
 
 
 def _package_version(name: str) -> str | None:
@@ -67,6 +89,7 @@ def _manifest(run_id: str, dataset_path: Path, provider: str, judge_model: str, 
             name: _package_version(name)
             for name in ("ragas", "torch", "transformers", "sentence-transformers", "faiss-cpu")
         },
+        "ragas_embedding_adapter": "async_huggingface_embeddings_bridge_v1",
     }
 
 
@@ -92,7 +115,6 @@ def build_judge(provider: str, model: str, api_key: str):
 
 def build_metrics(judge_llm, embedding_model_name: str) -> dict[str, Any]:
     """Instantiate official Ragas collection metrics for a final experiment."""
-    from ragas.embeddings import HuggingfaceEmbeddings
     from ragas.metrics.collections import (
         AnswerRelevancy,
         ContextPrecision,
@@ -101,7 +123,7 @@ def build_metrics(judge_llm, embedding_model_name: str) -> dict[str, Any]:
         Faithfulness,
     )
 
-    evaluator_embeddings = HuggingfaceEmbeddings(model_name=embedding_model_name)
+    evaluator_embeddings = _async_huggingface_embeddings_class()(model_name=embedding_model_name)
     return {
         "faithfulness": Faithfulness(llm=judge_llm),
         "answer_relevancy": AnswerRelevancy(llm=judge_llm, embeddings=evaluator_embeddings),

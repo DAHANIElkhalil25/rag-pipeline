@@ -8,6 +8,7 @@ import pytest
 from evaluation.create_annotation_candidates import create_candidates
 from evaluation.dataset_schema import deterministic_id_scores, read_jsonl, validate_gold_records
 from evaluation.build_candidate_aligned_review_dataset import REVISIONS
+from evaluation.ragas_runner import _async_huggingface_embeddings_class
 
 
 def make_record(split="dev", review_status="needs_context_annotation", context_ids=None):
@@ -126,3 +127,10 @@ def test_frozen_final_dataset_is_complete_balanced_and_schema_validated():
         "langchain": 40,
     }
     assert all(row["reference_context_ids"] for row in rows)
+
+
+def test_ragas_huggingface_embedding_adapter_is_concrete_with_async_methods():
+    adapter_class = _async_huggingface_embeddings_class()
+    assert adapter_class.__abstractmethods__ == frozenset()
+    assert hasattr(adapter_class, "aembed_query")
+    assert hasattr(adapter_class, "aembed_documents")

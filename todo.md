@@ -12,3 +12,10 @@
 - [x] Contrôler les 120 questions, réponses, URLs et identifiants de chunks contre les candidats Kaggle reçus.
 - [x] Geler le jeu final avec une provenance de validation explicite et non trompeuse.
 - [x] Publier le jeu final et les contrôles, puis donner l’unique étape Kaggle pour Ragas.
+
+# Correction de l’exécution Ragas finale
+
+- [ ] Diagnostiquer l’adaptateur d’embeddings incompatible avec Ragas 0.4.3 dans Kaggle.
+- [ ] Remplacer ou encapsuler l’adaptateur afin de fournir les méthodes asynchrones requises.
+- [ ] Ajouter un test de non-régression et mettre à jour le notebook français si nécessaire.
+- [ ] Publier la correction et donner une reprise limitée au mode EVALUATION_FINALE.
