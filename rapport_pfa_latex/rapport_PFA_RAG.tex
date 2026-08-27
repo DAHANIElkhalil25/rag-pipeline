@@ -13,6 +13,7 @@
 \usepackage[T1]{fontenc}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage[french]{babel}
+\addto\captionsfrench{\renewcommand{\tablename}{Tableau}}
 \usepackage{mathptmx}
 \usepackage{microtype}
 \usepackage{float}
@@ -98,10 +99,10 @@ pour la documentation technique}}
 \newcommand{\Filiere}{Data Science}
 \newcommand{\AnneeUniversitaire}{2025--2026}
 \newcommand{\EncadrantINSEA}{M. Najib OURADI}
-\newcommand{\EncadrantOrganisme}{Responsable de stage -- 3D Smart Factory}
+\newcommand{\EncadrantOrganisme}{[À compléter : responsable de stage, 3D Smart Factory]}
 \newcommand{\JureUn}{M. Najib OURADI}
 \newcommand{\JureDeux}{M. Rachid BENMANSOUR}
-\newcommand{\TitreRapport}{Conception et évaluation d'un assistant RAG pour l'interrogation de documentation technique}
+\newcommand{\TitreRapport}{Conception et évaluation d'un\\assistant RAG spécialisé pour la\\documentation technique}
 
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 
@@ -372,19 +373,21 @@ technique.
 
 \section{Présentation de 3D Smart Factory}
 
-Selon les éléments fournis dans le cadre du stage, \textbf{3D Smart Factory} est
-une structure marocaine basée à Mohammédia qui accompagne des porteurs de
-projets, des jeunes entrepreneurs et des entreprises à différentes étapes de
-leur développement. Son action couvre notamment l'idéation, le cadrage,
-l'accompagnement méthodologique, le développement de solutions et l'orientation
-vers la mise sur le marché.
+Selon les informations communiquées pour le stage, \textbf{3D Smart Factory} est
+une entreprise implantée à Mohammédia, dans le quartier Lotissement La Gare. Elle
+accompagne des porteurs de projets et de jeunes entrepreneurs tout au long de
+leur parcours, depuis les phases de recherche et d'idéation jusqu'à la production
+et à la mise sur le marché~\cite{organisationSource}. Son site de Mohammédia est
+également un lieu d'échange avec un écosystème d'entrepreneurs et de partenaires.
 
-L'organisme se situe au croisement de l'innovation, du conseil, de l'appui aux
-projets technologiques et de l'entrepreneuriat. Ce positionnement favorise des
-missions où les méthodes issues de la recherche académique peuvent être
-transformées en prototypes concrets. Dans ce cadre, les technologies de
-l'intelligence artificielle et de l'analyse de données représentent des leviers
-pour produire des outils accessibles et directement exploitables.
+L'accompagnement repose sur un encadrement d'experts, des formations ciblées et
+la mobilisation de ressources adaptées à chaque projet. Dans l'esprit de
+l'Industrie 4.0, l'objectif est de transformer une idée en solution concrète.
+Les interventions portent sur des projets technologiques couvrant plusieurs
+maillons de la chaîne de valeur : développement, fabrication et
+commercialisation~\cite{organisationSource}. Le support transmis mentionne aussi
+un ancrage sectoriel dans les dispositifs médicaux et un fonctionnement de type
+TPE, favorable à un accompagnement personnalisé et réactif.
 
 \begin{figure}[H]
 \centering
@@ -401,29 +404,6 @@ pour produire des outils accessibles et directement exploitables.
 \end{tikzpicture}
 \caption{Synthèse du positionnement de l'organisme d'accueil, d'après les informations fournies pour le stage.}
 \label{fig:3dsmartfactory}
-\end{figure}
-
-Les deux visuels institutionnels transmis pour le stage sont reproduits à la
-figure~\ref{fig:visuels-organisme}. Ils complètent la présentation de
-l'organisme sans se substituer aux informations de cadrage retenues dans ce
-rapport.
-
-\begin{figure}[H]
-\centering
-\begin{minipage}[t]{0.47\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{assets/organisme_3dsmartfactory_01.png}
-  \vspace{2pt}
-  \small (a) Visuel institutionnel fourni pour le stage.
-\end{minipage}\hfill
-\begin{minipage}[t]{0.47\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{assets/organisme_3dsmartfactory_02.png}
-  \vspace{2pt}
-  \small (b) Visuel institutionnel fourni pour le stage.
-\end{minipage}
-\caption{Éléments visuels communiqués dans le cadre de la présentation de 3D Smart Factory.}
-\label{fig:visuels-organisme}
 \end{figure}
 
 \section{Organisation générale et intérêt du cadre de stage}
@@ -609,22 +589,40 @@ limites d'une autre. Le chapitre suivant précise les fondements théoriques qui
 justifient ces choix.
 
 %=============================================================================
-\chapter{Fondements théoriques}
+\chapter{Fondements théoriques du RAG et de son évaluation}
 \label{chap:theorie}
+
+\section{Objectif et organisation du chapitre}
+
+Ce chapitre présente les notions nécessaires pour comprendre l'architecture et
+les résultats du projet. Il distingue le rôle du modèle de langage, la recherche
+d'information, la sélection des passages et l'évaluation. Cette séparation est
+essentielle : dans un système RAG, une réponse faible peut provenir du corpus,
+du récupérateur, du classement ou de la génération. Les revues récentes du
+domaine confirment que l'évaluation doit couvrir ces composantes, plutôt que de
+noter uniquement la réponse finale~\cite{gao2023survey,yu2024eval}.
 
 \section{Grands modèles de langage et génération conditionnée}
 
 Un grand modèle de langage prédit la suite la plus probable d'une séquence de
-tokens en s'appuyant sur des régularités apprises durant son entraînement. Cette
-capacité permet de produire des explications naturelles, mais ne garantit pas
-que le modèle possède une connaissance exacte, récente ou vérifiable sur un
-sujet donné. Une réponse peut être fluide tout en étant incorrecte.
+tokens en s'appuyant sur des régularités apprises durant son entraînement. Pour
+une sortie $y=(y_1,\ldots,y_T)$ et une entrée $x$, cette génération peut être
+représentée par :
+\[
+P_\theta(y\mid x)=\prod_{t=1}^{T}P_\theta(y_t\mid y_{<t},x),
+\]
+où $\theta$ représente les paramètres appris. Les architectures Transformer
+fondées sur l'attention constituent la base de ces modèles~\cite{vaswani2017attention}.
+Les encodeurs bidirectionnels de type BERT sont, eux, particulièrement adaptés à
+la représentation de phrases et au classement de paires de textes~\cite{devlin2018bert}.
 
-La génération conditionnée par un contexte documentaire vise à réduire ce
-risque. Le modèle génératif reçoit la question et les passages retrouvés ; son
-rôle est alors de synthétiser une réponse en se limitant à cette evidence. Dans
-ce projet, Mistral-7B-Instruct constitue le générateur local exécuté sur GPU
-avec quantification 4-bit~\cite{jiang2023mistral}.
+Cette capacité de génération ne garantit pas une connaissance exacte, récente ou
+vérifiable d'une API. Un LLM peut produire une réponse cohérente en surface sans
+qu'elle soit soutenue par une documentation. Le projet utilise
+\texttt{Mistral-7B-Instruct-v0.3} comme générateur local, chargé par la
+bibliothèque Transformers~\cite{jiang2023mistral,wolf2019transformers}. La
+quantification 4-bit est un choix d'ingénierie permettant son exécution sur le
+GPU T4 de Kaggle ; elle ne transforme pas le modèle en source documentaire.
 
 \section{Principe de la génération augmentée par récupération}
 
@@ -640,13 +638,41 @@ elle fournit une provenance pour les réponses. Néanmoins, l'amélioration de l
 génération dépend directement de la qualité des passages récupérés : un contexte
 hors sujet peut conduire à une réponse hors sujet.
 
+\section{Préparation du corpus : nettoyage, chunks et provenance}
+
+Une documentation complète ne peut pas être transmise intégralement au modèle
+pour chaque question. Elle est donc découpée en fragments, appelés \textit{chunks}.
+Un chunk doit être assez court pour être traité efficacement, tout en conservant
+un contexte sémantique utile. Un découpage trop court sépare une définition de
+ses conditions d'usage ; un découpage trop long dilue la précision de la
+recherche et augmente le bruit dans le prompt.
+
+Le projet conserve, pour chaque chunk, un identifiant stable, l'identifiant du
+document d'origine, l'URL, le domaine et une empreinte de contenu. Ces
+métadonnées permettent d'associer une réponse à une source et de vérifier, dans
+le jeu de test, si le passage annoté a effectivement été retrouvé. Le nettoyage
+et le dédoublonnage sont donc des opérations méthodologiques : ils améliorent la
+cohérence de l'index et la reproductibilité du protocole.
+
 \section{Embeddings, similarité vectorielle et FAISS}
 
-Un embedding transforme un texte en vecteur numérique de dimension fixe. Deux
-textes sémantiquement proches ont alors tendance à présenter des vecteurs plus
-proches selon une mesure telle que la similarité cosinus. Sentence-BERT a
-popularisé cette approche en produisant des embeddings de phrases efficaces
-pour la recherche sémantique~\cite{reimers2019sbert}.
+Un embedding transforme un texte en vecteur numérique de dimension fixe. La
+proximité entre une question $q$ et un passage $c$ peut être mesurée par la
+similarité cosinus :
+\[
+\operatorname{sim}(q,c)=\frac{\mathbf{v}_q\cdot\mathbf{v}_c}
+{\lVert\mathbf{v}_q\rVert\,\lVert\mathbf{v}_c\rVert}.
+\]
+Sentence-BERT a popularisé cette approche en produisant des embeddings de
+phrases efficaces pour la recherche sémantique~\cite{reimers2019sbert}. Les
+récupérateurs denses bi-encodeurs ont également démontré qu'un encodage séparé
+des questions et passages est utilisable pour les questions-réponses ouvertes~\cite{karpukhin2020dpr}.
+
+Le modèle E5 retenu dans le projet est entraîné par apprentissage contrastif
+faiblement supervisé et vise des représentations génériques de textes~\cite{wange5}.
+Les préfixes \texttt{query:} et \texttt{passage:} sont appliqués conformément à
+son protocole. Ils conviennent au cas étudié : les questions sont majoritairement
+en français alors que les documentations techniques sont principalement anglaises.
 
 FAISS est utilisé pour indexer les vecteurs des chunks et retrouver rapidement
 les voisins les plus proches d'une question encodée. Les travaux de Johnson,
@@ -662,10 +688,27 @@ corrigeant la fréquence des mots et la longueur des documents~\cite{robertson20
 Cette approche reste particulièrement pertinente lorsqu'une question contient
 un nom de fonction, une classe ou un paramètre exact.
 
+Pour une requête $q$ et un document $d$, la fonction BM25 peut s'écrire :
+\[
+\operatorname{BM25}(q,d)=\sum_{t\in q}\operatorname{IDF}(t)
+\frac{f(t,d)(k_1+1)}{f(t,d)+k_1\left(1-b+b\frac{|d|}{\operatorname{avgdl}}\right)},
+\]
+où $f(t,d)$ est la fréquence du terme $t$ dans $d$, $|d|$ la longueur du
+document et $\operatorname{avgdl}$ la longueur moyenne des documents.
+
 La recherche dense capte davantage le sens général, tandis que BM25 favorise
 les correspondances lexicales. Leur combinaison est appelée recherche hybride.
 Elle est utile pour des questions techniques, car celles-ci mélangent souvent
 un concept exprimé en langage naturel et un symbole ou une API précise.
+
+Dans le système final, les scores normalisés sont fusionnés selon :
+\[
+S_{\mathrm{hybride}}(q,c)=\alpha S_{\mathrm{dense}}(q,c)+(1-\alpha)S_{\mathrm{BM25}}(q,c),
+\quad \alpha=0{,}7.
+\]
+Ce poids donne une place majoritaire à la proximité sémantique tout en conservant
+le bénéfice des termes exacts. Il s'agit d'un paramètre choisi lors du
+benchmarking du projet et non d'une valeur universelle applicable à tout corpus.
 
 \section{Reranking par cross-encoder}
 
@@ -676,7 +719,7 @@ produire un classement plus fin qu'une simple comparaison de vecteurs. Cette
 approche à deux étapes est courante pour améliorer la précision finale de la
 recherche~\cite{nogueira2019passagererank}.
 
-Le projet utilise \texttt{BAAI/bge-reranker-v2-m3}, un reranker multilingue. Il
+Le projet utilise \texttt{BAAI/bge-reranker-v2-m3}, un reranker multilingue~\cite{bgereranker}. Il
 réordonne les vingt candidats hybrides et transmet les cinq meilleurs passages
 au générateur. Ce paramètre \textit{top 5} est également réutilisé dans
 l'évaluation des contextes.
@@ -700,9 +743,11 @@ coût de calcul.
 
 Ragas propose des métriques destinées à mesurer plusieurs dimensions d'un
 système RAG, notamment la récupération et la fidélité de la réponse au
-contexte~\cite{es2023ragas}. Dans le protocole final, les métriques sont
+contexte~\cite{es2023ragas,ragasdocs}. Dans le protocole final, les métriques sont
 calculées avec un juge Mistral externe. Elles sont complétées par des mesures
-déterministes fondées sur les identifiants de chunks de référence.
+déterministes fondées sur les identifiants de chunks de référence. Les travaux de
+synthèse sur l'évaluation RAG confirment l'importance de distinguer la qualité
+de la récupération de la qualité de la génération~\cite{yu2024eval}.
 
 \begin{table}[H]
 \centering
@@ -722,13 +767,27 @@ Hit@5 et MRR@5 & Mesures déterministes indiquant la présence et le rang du chu
 \end{tabularx}
 \end{table}
 
+Les métriques Ragas du projet sont calculées par un juge LLM. Elles doivent donc
+être lues comme des évaluations automatiques structurées, mais non comme une
+vérité absolue. Elles sont complétées par deux mesures déterministes :
+\[
+\operatorname{Hit@}k=\frac{1}{N}\sum_{i=1}^{N}\mathbb{1}[R_i\cap C_i^{(k)}\neq\varnothing],
+\qquad
+\operatorname{MRR@}k=\frac{1}{N}\sum_{i=1}^{N}\frac{1}{\operatorname{rang}_i}.
+\]
+Ici, $R_i$ représente les chunks de référence de la question $i$, $C_i^{(k)}$
+les $k$ passages récupérés et $\operatorname{rang}_i$ le rang du premier chunk
+de référence, lorsqu'il est présent. Ces indicateurs vérifient directement la
+présence et la position des preuves annotées.
+
 \section*{Conclusion du chapitre}
 \addcontentsline{toc}{section}{Conclusion du Chapitre 3}
 
 Les fondements théoriques montrent que la qualité d'un système RAG dépend d'une
-chaîne complète : documents, représentation vectorielle, classement, contexte,
-génération et protocole d'évaluation. Le chapitre suivant décrit la traduction
-concrète de ces principes dans le code et le notebook Kaggle.
+chaîne complète : données de qualité, découpage traçable, récupération dense et
+lexicale, classement, contexte, génération contrôlée et évaluation à plusieurs
+niveaux. Le chapitre suivant traduit ces principes en choix d'implémentation dans
+le code et le notebook Kaggle.
 
 %=============================================================================
 \chapter{Réalisation du système RAG}
@@ -765,11 +824,12 @@ Interface & Gradio & Démonstration interactive dans Kaggle.\\
 \section{Collecte, nettoyage et découpage}
 
 Les documents Python, Scikit-learn et LangChain sont collectés depuis leurs
-sources officielles. Le nettoyage supprime les éléments non utiles et conserve
-les informations nécessaires à la provenance. Les documents nettoyés sont
-ensuite divisés en chunks de taille contrôlée. Un chunk comprend son texte et
-des métadonnées telles que \texttt{chunk\_id}, \texttt{document\_id},
-\texttt{doc\_url} et une empreinte de contenu.
+sources officielles~\cite{pythonDocs,sklearnDocs,langchainDocs}. Le nettoyage
+supprime les éléments non utiles et conserve les informations nécessaires à la
+provenance. Les documents nettoyés sont ensuite divisés en chunks de taille
+contrôlée. Un chunk comprend son texte et des métadonnées telles que
+\texttt{chunk\_id}, \texttt{document\_id}, \texttt{doc\_url} et une empreinte
+de contenu.
 
 L'identité stable des chunks est essentielle au protocole final. Elle rend
 possible l'annotation des passages de référence et permet de distinguer une
@@ -811,10 +871,13 @@ utilisée afin de privilégier des réponses factuelles et stables.
 \section{Interface Gradio}
 
 L'interface permet de saisir une question, d'afficher la réponse et de consulter
-les sources récupérées. La même instance du pipeline est réutilisée afin
-d'éviter le chargement multiple du modèle sur le GPU. Lorsque le pipeline
-détecte un sujet explicitement hors périmètre, l'interface affiche un statut
-clair au lieu de montrer des sources potentiellement trompeuses.
+les sources récupérées. Gradio est adapté à cette fonction de démonstration, car
+la bibliothèque facilite la construction et le partage rapide d'interfaces de
+modèles d'apprentissage automatique~\cite{abid2019gradio,gradio}. La même instance
+du pipeline est réutilisée afin d'éviter le chargement multiple du modèle sur le
+GPU. Lorsque le pipeline détecte un sujet explicitement hors périmètre,
+l'interface affiche un statut clair au lieu de montrer des sources potentiellement
+trompeuses.
 
 \begin{figure}[H]
 \centering
@@ -887,17 +950,44 @@ méthodologiques encore présentes.
 
 \section{Protocole expérimental}
 
-L'évaluation comprend deux niveaux. La première baseline a été exécutée sur 20
-questions avec un évaluateur personnalisé inspiré de Ragas. Elle est conservée
-comme diagnostic initial et ne doit pas être écrasée. L'évaluation principale
-utilise Ragas 0.4.3 sur 120 questions françaises, équilibrées entre Python,
-Scikit-learn et LangChain.
+L'évaluation comprend deux niveaux complémentaires. Le premier est une baseline
+historique, archivée séparément afin de conserver le diagnostic du système avant
+les améliorations. Le second est le protocole principal, construit pour une
+évaluation Ragas plus large, traçable et équilibrée.
 
-Le jeu final contient une réponse de référence, des URLs de documentation et des
-identifiants de chunks pour chaque question. La validation des références est
-tracée comme une validation experte assistée par IA à relecteur unique. Cette
-précision doit être déclarée : elle ne constitue pas une annotation indépendante
-par plusieurs évaluateurs humains.
+\subsection{Baseline historique : rôle et limites de comparaison}
+
+La baseline \texttt{baseline\_v1\_custom\_ragas\_inspired} a été exécutée sur
+20 questions : 7 portant sur Python, 6 sur Scikit-learn et 7 sur LangChain. Son
+artefact est conservé au commit \texttt{c88e287}~\cite{baselineArtifact,baselineCode}.
+Elle utilise un évaluateur personnalisé inspiré de Ragas, avec au plus cinq
+contextes et huit affirmations examinées par réponse. Elle constitue donc un
+\textbf{diagnostic initial}, et non l'évaluation officielle finale.
+
+Le code historique prévoit comme configuration de repli un récupérateur
+\texttt{all-MiniLM-L6-v2}, issu de la famille compacte MiniLM~\cite{wang2020minilm},
+une recherche sémantique seule et cinq passages.
+Cependant, il pouvait charger un rapport de benchmarking présent dans Kaggle ;
+ce manifeste précis n'a pas été archivé avec l'exécution historique. Par rigueur,
+le modèle MiniLM est présenté comme une configuration de repli du code et non
+comme un paramètre expérimental certifié du run baseline~\cite{baselineCode}.
+
+La baseline est utile car elle a révélé, sur un jeu réduit, les premières limites
+de pertinence et de récupération. Elle a orienté les améliorations ultérieures :
+provenance des chunks, jeu de test équilibré, recherche E5--BM25, reranking et
+évaluation Ragas officielle. Elle ne peut pas servir à calculer un gain chiffré
+direct, car les questions, les références de contexte, l'implémentation des
+métriques et le juge diffèrent du protocole final.
+
+\subsection{Protocole final}
+
+L'évaluation principale utilise Ragas 0.4.3 sur 120 questions françaises,
+équilibrées entre Python, Scikit-learn et LangChain. Le jeu final contient une
+réponse de référence, des URLs de documentation et des identifiants de chunks
+pour chaque question. La validation des références est tracée comme une
+validation experte assistée par IA à relecteur unique. Cette précision doit être
+déclarée : elle ne constitue pas une annotation indépendante par plusieurs
+évaluateurs humains.
 
 \begin{table}[H]
 \centering
@@ -909,6 +999,7 @@ par plusieurs évaluateurs humains.
 \midrule
 Nombre de questions & 20 & 120 (40 par domaine).\\
 Évaluateur & Code personnalisé inspiré de Ragas. & Ragas 0.4.3 officiel avec juge Mistral.\\
+Modèle / recherche & Configuration historique non entièrement gelée ; repli du code : all-MiniLM-L6-v2, sémantique, top 5. & E5 multilingue + BM25, $\alpha=0{,}7$, reranking BGE, 20 candidats puis top 5.\\
 Références de contexte & Non systématiquement annotées. & IDs de chunks et URLs de référence.\\
 Rôle & Diagnostic initial. & Évaluation principale du système final.\\
 Comparaison numérique & Non comparable strictement. & Protocole plus large et plus traçable.\\
@@ -972,7 +1063,7 @@ Faithfulness & \textbf{0,888} & 116/120 & Les réponses sont globalement justifi
 Answer Relevancy & \textbf{0,913} & 120/120 & Les réponses traitent le plus souvent la question posée.\\
 Context Precision & \textbf{0,819} & 119/120 & Les passages sont souvent utiles, mais le classement peut être amélioré.\\
 Context Recall & \textbf{0,879} & 120/120 & Les informations nécessaires sont fréquemment présentes dans le contexte.\\
-Factual Correctness & \textbf{0,693} & 118/120 & L'exactitude par rapport aux références est l'axe principal d'amélioration.\\
+Factual\newline Correctness & \textbf{0,693} & 118/120 & L'exactitude par rapport aux références est l'axe principal d'amélioration.\\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -1092,16 +1183,27 @@ finals définitivement gelés.
 
 \section{Positionnement par rapport à la baseline}
 
-La baseline de 20 questions obtenait des valeurs de 0,789 pour la fidélité,
-0,727 pour la pertinence, 0,562 pour la précision de contexte et 0,625 pour le
-rappel de contexte. Ces chiffres ne doivent pas être comparés directement aux
-scores Ragas finaux, car les questions, l'implémentation des métriques et le
-juge diffèrent.
+L'artefact de baseline enregistre les moyennes suivantes : Faithfulness = 0,789,
+Answer Relevancy = 0,727, Context Precision = 0,562 et Context Recall = 0,625.
+Il contient aussi des indicateurs de récupération élevés sur son jeu court :
+Hit rate@5 = 0,980, MRR@5 = 0,927 et Precision@5 = 0,825~\cite{baselineArtifact}.
+Ces résultats ont eu une utilité exploratoire : ils ont aidé à formuler les
+axes de travail et à décider de renforcer la traçabilité, la diversité du jeu de
+questions et l'évaluation des contextes.
 
-La formulation correcte est la suivante : la baseline a joué le rôle de
-diagnostic initial ; l'évaluation finale constitue un protocole plus large, plus
-équilibré et mieux documenté. Le projet démontre ainsi une amélioration de la
-rigueur expérimentale, sans revendiquer une progression numérique stricte entre
+Ils ne doivent cependant pas être comparés directement aux scores Ragas finaux.
+La baseline repose sur 20 questions, un évaluateur personnalisé, des références
+de contexte incomplètement annotées et une configuration historique dont le
+manifeste de benchmarking n'est plus disponible. L'évaluation finale porte sur
+120 questions équilibrées, des réponses de référence, des URLs, des chunks
+annotés, Ragas 0.4.3 et un juge Mistral. Les deux expériences ne mesurent donc
+pas exactement le même objet~\cite{baselineArtifact,es2023ragas}.
+
+La conclusion méthodologique est la suivante : la baseline a servi de
+\textbf{diagnostic initial}, tandis que l'évaluation finale constitue le résultat
+principal du projet. La progression démontrée ici est une progression de la
+rigueur expérimentale -- corpus traçable, récupération hybride, reranking et
+protocole documenté -- et non une affirmation de gain numérique strict entre
 deux protocoles non identiques.
 
 \section*{Conclusion du chapitre}
@@ -1293,6 +1395,61 @@ Gradio, ``Gradio Documentation,'' documentation officielle, consultée en août
 \bibitem{kaggle}
 Kaggle, ``Notebooks Documentation,'' documentation officielle, consultée en août
 2026. Disponible : \url{https://www.kaggle.com/docs/notebooks}.
+
+\bibitem{karpukhin2020dpr}
+V. Karpukhin, B. Oğuz, S. Min et al., ``Dense Passage Retrieval for Open-Domain
+Question Answering,'' \textit{Proceedings of EMNLP}, 2020. Disponible :
+\url{https://arxiv.org/abs/2004.04906}.
+
+\bibitem{gao2023survey}
+Y. Gao, Y. Xiong, X. Gao et al., ``Retrieval-Augmented Generation for Large
+Language Models: A Survey,'' \textit{arXiv preprint arXiv:2312.10997}, 2023.
+Disponible : \url{https://arxiv.org/abs/2312.10997}.
+
+\bibitem{yu2024eval}
+H. Yu, A. Gan, K. Zhang et al., ``Evaluation of Retrieval-Augmented Generation:
+A Survey,'' \textit{arXiv preprint arXiv:2405.07437}, 2024. Disponible :
+\url{https://arxiv.org/abs/2405.07437}.
+
+\bibitem{vaswani2017attention}
+A. Vaswani, N. Shazeer, N. Parmar et al., ``Attention Is All You Need,''
+\textit{Advances in Neural Information Processing Systems}, vol. 30, 2017.
+Disponible : \url{https://arxiv.org/abs/1706.03762}.
+
+\bibitem{devlin2018bert}
+J. Devlin, M.-W. Chang, K. Lee et K. Toutanova, ``BERT: Pre-training of Deep
+Bidirectional Transformers for Language Understanding,'' \textit{Proceedings of
+NAACL-HLT}, 2019. Disponible : \url{https://arxiv.org/abs/1810.04805}.
+
+\bibitem{wolf2019transformers}
+T. Wolf, L. Debut, V. Sanh et al., ``Transformers: State-of-the-Art Natural
+Language Processing,'' \textit{Proceedings of EMNLP}, 2020. Disponible :
+\url{https://arxiv.org/abs/1910.03771}.
+
+\bibitem{abid2019gradio}
+A. Abid, A. Abdalla, A. Abid et al., ``Gradio: Hassle-Free Sharing and Testing
+of ML Models in the Wild,'' \textit{ICML Workshop on Human in the Loop Learning},
+2019. Disponible : \url{https://arxiv.org/abs/1906.02569}.
+
+\bibitem{wang2020minilm}
+W. Wang, F. Wei, L. Dong et al., ``MiniLM: Deep Self-Attention Distillation for
+Task-Agnostic Compression of Pre-Trained Transformers,'' \textit{arXiv preprint
+arXiv:2002.10957}, 2020. Disponible : \url{https://arxiv.org/abs/2002.10957}.
+
+\bibitem{baselineArtifact}
+E. Dahani, ``Baseline RAG historique : métriques archivées,'' artefact interne
+du projet, fichier \texttt{evaluation/baseline/baseline\_metrics\_v1.json},
+commit source \texttt{c88e287}, août 2026.
+
+\bibitem{baselineCode}
+E. Dahani, ``Évaluateur baseline personnalisé inspiré de Ragas,'' code source
+archivé, fichier \texttt{legacy/etape6\_baseline\_custom.py}, commit source
+\texttt{c88e287}, août 2026.
+
+\bibitem{organisationSource}
+3D Smart Factory, ``Présentation de l'organisme d'accueil,'' informations
+internes communiquées dans les deux extraits de rapport remis pour le stage,
+Mohammédia, août 2026.
 
 \end{thebibliography}
 

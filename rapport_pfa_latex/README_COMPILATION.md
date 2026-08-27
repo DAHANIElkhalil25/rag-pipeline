@@ -22,3 +22,9 @@ La page de garde est explicitement un **PFA**. Le jury contient exactement deux 
 ## Important sur les résultats
 
 Le rapport décrit les résultats Ragas réellement reçus : les scores Ragas sont largement calculés, mais cinq lignes du jeu de test sont mal formées. Le texte les qualifie donc correctement de résultats **provisoires** et recommande de corriger les lignes avant de geler le score final. Cette transparence doit être conservée.
+
+## Organisme et évaluation académique
+
+Le contenu exploitable des deux supports transmis sur 3D Smart Factory a été reformulé dans le chapitre de présentation de l’organisme. Les captures d’écran ne sont pas intégrées au PDF, conformément à la consigne reçue.
+
+Le fichier `REVUE_ACADEMIQUE_FINALE.md` contient l’évaluation indépendante du rapport, ses forces, les réserves méthodologiques et les vérifications restantes avant un dépôt officiel.

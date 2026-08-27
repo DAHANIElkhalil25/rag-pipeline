@@ -119,3 +119,11 @@
 ## Accord explicite
 
 L’étudiant a autorisé le 26 août 2026 l’utilisation de l’interface compatible OpenAI de Mistral, avec client asynchrone, uniquement pour le juge Ragas.
+
+# Révision académique approfondie du rapport PFA
+
+- [x] Extraire uniquement les informations lisibles des deux visuels de 3D Smart Factory et retirer les captures du rapport.
+- [x] Auditer le fond, la structure, les affirmations et les références du rapport avec une grille de relecture académique.
+- [x] Ajouter une présentation justifiée de la baseline historique et de son rôle méthodologique.
+- [x] Approfondir les fondements théoriques RAG et étendre la bibliographie avec des sources primaires et officielles.
+- [x] Compiler, vérifier et remettre la version révisée du rapport et de ses sources.
