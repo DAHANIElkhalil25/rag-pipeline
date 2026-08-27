@@ -10,6 +10,7 @@ from evaluation.create_annotation_candidates import create_candidates
 from evaluation.dataset_schema import deterministic_id_scores, read_jsonl, validate_gold_records
 from evaluation.build_candidate_aligned_review_dataset import REVISIONS
 from evaluation.ragas_runner import _sentence_transformer_ragas_embeddings_class, build_judge, build_metrics
+from core.scope_guard import evaluate_scope, explicit_scope_refusal
 
 
 def make_record(split="dev", review_status="needs_context_annotation", context_ids=None):
@@ -181,3 +182,50 @@ def test_mistral_ragas_judge_uses_an_openai_compatible_asynchronous_client():
     judge = build_judge("mistral", "mistral-small-latest", "test-key-used-for-construction-only")
     assert judge.is_async is True
     assert judge.model == "mistral-small-latest"
+
+
+SCOPE_GUARD_CONFIG = {
+    "enabled": True,
+    "minimum_top_score": None,
+    "unsupported_aliases": {"pd": "pandas"},
+    "unsupported_libraries": ["pandas", "django"],
+}
+
+
+def test_scope_guard_refuses_explicit_library_outside_the_documented_corpus():
+    decision = evaluate_scope(
+        "fait quoi pd.head ?",
+        [{"retrieval_score": 0.95, "chunk_text": "Un passage trompeur."}],
+        SCOPE_GUARD_CONFIG,
+    )
+    assert decision["allow_answer"] is False
+    assert decision["reason"] == "unsupported_library"
+    assert decision["detected_topic"] == "pandas"
+
+
+def test_explicit_scope_precheck_refuses_pandas_before_retrieval():
+    decision = explicit_scope_refusal("Comment fonctionne pandas.DataFrame.head() ?", SCOPE_GUARD_CONFIG)
+    assert decision is not None
+    assert decision["reason"] == "unsupported_library"
+
+    assert explicit_scope_refusal("Comment fonctionne yield en Python ?", SCOPE_GUARD_CONFIG) is None
+
+
+def test_scope_guard_refuses_when_no_document_is_retrieved():
+    decision = evaluate_scope("Question inconnue", [], SCOPE_GUARD_CONFIG)
+    assert decision["allow_answer"] is False
+    assert decision["reason"] == "no_retrieved_context"
+    assert decision["confidence"] == 0.0
+
+
+def test_scope_guard_keeps_a_supported_question_with_retrieved_evidence():
+    decision = evaluate_scope(
+        "Quel est le rôle de yield en Python ?",
+        [{"reranker_score": 0.12, "chunk_text": "yield suspend une fonction génératrice."}],
+        SCOPE_GUARD_CONFIG,
+    )
+    assert decision == {
+        "allow_answer": True,
+        "reason": "sufficient_retrieved_context",
+        "confidence": 0.12,
+    }

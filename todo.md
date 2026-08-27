@@ -71,6 +71,26 @@
 - [x] Adapter uniquement le provider Mistral du juge et ajouter un test de non-régression.
 - [ ] Publier la correction et donner les paramètres Kaggle Mistral sans relancer la préparation.
 
+# Analyse de l’exécution finale Mistral reçue
+
+- [x] Extraire l’archive et confirmer la présence des métriques et des erreurs par échantillon.
+- [x] Contrôler la couverture des cinq métriques Ragas avant toute interprétation.
+- [x] Analyser les résultats globaux, par domaine et les cas de récupération problématiques.
+- [x] Remettre une synthèse pédagogique utilisable dans le rapport de stage.
+
+# Plan du rapport de stage
+
+- [x] Proposer une structure académique complète adaptée au projet RAG.
+- [x] Relier chaque chapitre aux artefacts, statistiques et résultats déjà produits.
+- [x] Indiquer les limites méthodologiques à déclarer et les annexes à fournir.
+
+# Gestion hors contexte autorisée
+
+- [x] Calibrer une règle déterministe de confiance à partir des scores déjà observés, sans nouveau run Kaggle.
+- [x] Ajouter le refus structuré avant génération lorsque la récupération est insuffisante.
+- [x] Ajouter des tests couvrant question valide, aucun passage et question hors périmètre.
+- [ ] Publier la correction et fournir seulement le test Kaggle de l’étape 5.
+
 ## Accord explicite
 
 L’étudiant a autorisé le 26 août 2026 l’utilisation de l’interface compatible OpenAI de Mistral, avec client asynchrone, uniquement pour le juge Ragas.

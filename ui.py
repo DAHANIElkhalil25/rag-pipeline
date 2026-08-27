@@ -12,6 +12,18 @@ from typing import Any, Dict, List, Tuple
 
 def format_sources(result: Dict[str, Any]) -> str:
     """Formate les sources récupérées en Markdown lisible."""
+    if result.get("status") == "hors_perimetre":
+        scope = result.get("scope_check", {})
+        confidence = scope.get("confidence")
+        confidence_text = (
+            f"\n\nScore de récupération : `{float(confidence):.4f}`."
+            if confidence is not None else ""
+        )
+        return (
+            "### Statut : sujet hors périmètre ou source insuffisante\n\n"
+            "Aucune source n’est affichée, car le système n’a pas généré de réponse factuelle."
+            f"{confidence_text}"
+        )
     sources = result.get("sources", [])
     scores = result.get("retrieval_scores", [])
     if not sources:

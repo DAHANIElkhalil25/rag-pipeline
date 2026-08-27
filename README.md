@@ -218,6 +218,14 @@ Le générateur local Mistral et le modèle juge Ragas sont volontairement sépa
 
 Le module `ui.py` fournit une interface Gradio destinée à Kaggle. Il faut appeler `launch_ui(pipeline, share=True)` après avoir chargé le pipeline. L'interface réutilise la même instance de modèle et affiche la réponse ainsi que les sources récupérées et leurs scores. Elle n'est pas lancée automatiquement par le programme CLI afin de conserver un mode headless compatible avec les notebooks et les environnements CI.
 
+## Gestion des questions hors périmètre
+
+Le module `core/scope_guard.py` protège l'étape 5 et l'interface avant la génération. Si l'utilisateur nomme explicitement une bibliothèque absente du corpus — par exemple `pd.head()` ou `pandas.DataFrame` — le pipeline retourne un statut `hors_perimetre` sans lancer la recherche vectorielle, le reranker ou le modèle Mistral. L'interface affiche alors un message de refus clair et aucune source trompeuse.
+
+La protection refuse aussi une question lorsqu'aucun passage n'a été récupéré. Le seuil numérique `minimum_top_score` reste volontairement désactivé (`None`) : les scores E5 et BGE ne sont pas des probabilités et l'évaluation finale montre une forte dispersion même sur des questions connues du corpus. Un seuil ne sera activé qu'après une calibration distincte sur des questions dans et hors périmètre.
+
+Pour tester uniquement cette fonction dans le notebook français, exécutez la **cellule 4 — Étape 5** après avoir mis à jour le code. Elle affiche deux questions couvertes et la question `fait quoi pd.head ?`, qui doit être refusée sans charger le générateur pour cette troisième question.
+
 ## Interprétation des métriques baseline
 
 L'évaluation de l'étape 6 est une implémentation locale et transparente de métriques inspirées de Ragas. Le rapport distingue la fidélité, la pertinence de la réponse, la précision du contexte et le rappel du contexte. Si une compatibilité stricte avec le paquet officiel Ragas est requise, il faudra ajouter un adaptateur pour le client LLM et le modèle d'embedding avant d'utiliser les métriques officielles.

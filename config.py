@@ -87,6 +87,21 @@ LLM_CONFIG = {
     "ollama_model": "mistral",
 }
 
+# Contrôle hors périmètre pour l'interface et l'étape 5.
+# La liste explicite traite les bibliothèques absentes du corpus (ex. pd.head()).
+# Le seuil est volontairement désactivé tant qu'il n'est pas calibré sur un jeu
+# séparé de questions dans/hors périmètre : les scores E5/BGE ne sont pas des
+# probabilités directement comparables entre toutes les questions.
+SCOPE_GUARD_CONFIG = {
+    "enabled": True,
+    "minimum_top_score": None,
+    "unsupported_aliases": {"pd": "pandas"},
+    "unsupported_libraries": [
+        "pandas", "numpy", "django", "flask", "fastapi", "tensorflow",
+        "pytorch", "torch", "react", "angular", "vue", "node.js", "nodejs",
+    ],
+}
+
 # Paramètres de l'évaluation : les échecs de jugement sont conservés comme
 # invalides et ne sont jamais remplacés silencieusement par 0.5.
 EVALUATION_CONFIG = {

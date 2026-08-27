@@ -34,8 +34,12 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ('utf-8', 'utf8'):
     except AttributeError:
         pass  # Python < 3.7 : pas disponible, on continue
 
-from config import (PROCESSED_DIR, VECTORSTORE_DIR, BENCHMARK_DIR, LLM_CONFIG, logger)
+from config import (
+    PROCESSED_DIR, VECTORSTORE_DIR, BENCHMARK_DIR, LLM_CONFIG,
+    SCOPE_GUARD_CONFIG, logger,
+)
 from core.search import SimpleBM25
+from core.scope_guard import evaluate_scope, explicit_scope_refusal
 
 def load_index() -> Tuple[faiss.Index, List[Dict[str, Any]]]:
     """
@@ -335,6 +339,10 @@ class RAGPipeline:
         self.chunks = chunks
         self.embedding_model = embedding_model
         self.search_config = search_config
+        self.scope_guard_config = {
+            **SCOPE_GUARD_CONFIG,
+            **self.search_config.get("scope_guard", {}),
+        }
         self._reranker = None
         
         # Initialisation de BM25 si la recherche hybride est configurée
@@ -553,15 +561,25 @@ class RAGPipeline:
         Returns:
             Dict[str, Any]: Dictionnaire contenant question, réponse et sources.
         """
-        k = int(self.search_config.get("final_k", LLM_CONFIG.get("top_k_retrieval", 5)))
-        contexts = self.retrieve(question, k=k)
-        
-        if not contexts:
+        scope_check = explicit_scope_refusal(question, self.scope_guard_config)
+        contexts = []
+        if scope_check is None:
+            k = int(self.search_config.get("final_k", LLM_CONFIG.get("top_k_retrieval", 5)))
+            contexts = self.retrieve(question, k=k)
+            scope_check = evaluate_scope(question, contexts, self.scope_guard_config)
+        if not scope_check["allow_answer"]:
+            logger.info(
+                "Réponse refusée avant génération | raison=%s | score=%s | question=%r",
+                scope_check["reason"], scope_check.get("confidence"), question,
+            )
             return {
                 "question": question,
-                "answer": "Aucun document pertinent n'a été trouvé pour répondre à votre question.",
+                "answer": scope_check["message"],
                 "sources": [],
-                "retrieval_scores": []
+                "retrieval_scores": [],
+                "retrieved_chunks": contexts,
+                "status": "hors_perimetre",
+                "scope_check": scope_check,
             }
             
         prompt = self.build_prompt(question, contexts)
@@ -579,6 +597,8 @@ class RAGPipeline:
             "retrieved_chunks": contexts,
             "prompt_contexts": [record["text"] for record in prompt_context_records],
             "prompt_context_metadata": prompt_context_records,
+            "status": "reponse_sourcee",
+            "scope_check": scope_check,
         }
 
 def load_pipeline() -> RAGPipeline:
