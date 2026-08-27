@@ -1,0 +1,1353 @@
+%=============================================================================
+% RAPPORT PFA — INSEA / 3D SMART FACTORY
+% Sujet : Conception et évaluation d'un assistant RAG documentaire
+% Compilation : pdflatex rapport_PFA_RAG.tex  (deux passages recommandés)
+% Bibliographie intégrée : aucun fichier .bib externe requis
+%=============================================================================
+\documentclass[12pt,a4paper,oneside]{report}
+
+%------------------------------------------------------------------------------
+% 1. Encodage, langue et typographie (style du rapport PFE de référence)
+%------------------------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[french]{babel}
+\usepackage{mathptmx}
+\usepackage{microtype}
+\usepackage{float}
+\usepackage{setspace}
+\usepackage{parskip}
+
+%------------------------------------------------------------------------------
+% 2. Mise en page INSEA : 2,5 cm latéral, 3 cm haut, 2,5 cm bas
+%------------------------------------------------------------------------------
+\usepackage[top=3cm,bottom=2.5cm,left=2.5cm,right=2.5cm,headheight=30pt]{geometry}
+\setstretch{1.5}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{3em}
+
+%------------------------------------------------------------------------------
+% 3. Figures, tableaux, algorithmes et code
+%------------------------------------------------------------------------------
+\usepackage{graphicx}
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,shapes.geometric,backgrounds}
+\usepackage{enumitem}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,labelsep=period}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+\hypersetup{pdftitle={PFA -- Assistant RAG documentaire},pdfauthor={Elkhalil DAHANI}}
+
+%------------------------------------------------------------------------------
+% 4. En-têtes et pieds de page
+%------------------------------------------------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead[L]{\parbox[b]{0.64\textwidth}{\small\itshape\baselineskip=12pt
+Conception et évaluation d'un assistant RAG\\
+pour la documentation technique}}
+\fancyhead[R]{\small\itshape PFA -- INSEA 2026}
+\fancyfoot[C]{\small\thepage}
+
+%------------------------------------------------------------------------------
+% 5. Titres et code
+%------------------------------------------------------------------------------
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\Large\bfseries}
+  {\chaptertitlename\ \thechapter}{12pt}{\LARGE}
+  [\vspace{4pt}{\hrule height 0.5pt}\vspace{8pt}]
+\titlespacing*{\chapter}{0pt}{-10pt}{20pt}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\itshape}{\thesubsubsection}{1em}{}
+
+\lstdefinestyle{pythonstyle}{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{MidnightBlue}\bfseries,
+  commentstyle=\color{OliveGreen},
+  stringstyle=\color{BrickRed},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  frame=single,
+  rulecolor=\color{black!30},
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=4
+}
+\lstset{style=pythonstyle}
+
+%------------------------------------------------------------------------------
+% 6. Informations à personnaliser si nécessaire
+%------------------------------------------------------------------------------
+\newcommand{\NomEtudiant}{M. Elkhalil DAHANI}
+\newcommand{\Filiere}{Data Science}
+\newcommand{\AnneeUniversitaire}{2025--2026}
+\newcommand{\EncadrantINSEA}{M. Najib OURADI}
+\newcommand{\EncadrantOrganisme}{Responsable de stage -- 3D Smart Factory}
+\newcommand{\JureUn}{M. Najib OURADI}
+\newcommand{\JureDeux}{M. Rachid BENMANSOUR}
+\newcommand{\TitreRapport}{Conception et évaluation d'un assistant RAG pour l'interrogation de documentation technique}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+%=============================================================================
+\begin{document}
+%=============================================================================
+
+%------------------------------------------------------------------------------
+% PAGE DE GARDE — PFA, deux jurés INSEA exclusivement
+%------------------------------------------------------------------------------
+\newgeometry{top=0.8cm,bottom=1.5cm,left=2cm,right=2cm}
+\begin{titlepage}
+\thispagestyle{empty}
+\setlength{\parindent}{0pt}
+
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[green!12] ([xshift=-1cm,yshift=-1cm]current page.north west) rectangle
+    ([xshift=5.5cm,yshift=-8cm]current page.north west);
+  \fill[brown!45!black] ([xshift=-1cm,yshift=-1cm]current page.north west) rectangle
+    ([xshift=-0.4cm,yshift=-8cm]current page.north west);
+  \fill[green!12] ([xshift=1cm,yshift=0.5cm]current page.south east) rectangle
+    ([xshift=-6cm,yshift=5cm]current page.south east);
+  \fill[brown!45!black] ([xshift=1cm,yshift=0.5cm]current page.south east) rectangle
+    ([xshift=0.4cm,yshift=5cm]current page.south east);
+\end{tikzpicture}
+
+\begin{center}
+{\bfseries ROYAUME DU MAROC}\\[2pt]
+{\bfseries *-*-*-*-*}\\[2pt]
+{\bfseries HAUT-COMMISSARIAT AU PLAN}\\[2pt]
+{\bfseries *-*-*-*-*-*-*-*}\\[2pt]
+{\bfseries I\textsc{nstitut} N\textsc{ational} de S\textsc{tatistique} et d'\textsc{Économie} A\textsc{ppliquée}}\\[8pt]
+\rule{0.68\textwidth}{0.5pt}\\[14pt]
+{\Large\bfseries INSEA}\\[3pt]
+{\large\bfseries \Filiere}
+\end{center}
+
+\vspace{2.2cm}
+\begin{center}
+  {\Large\bfseries Projet de Fin d'Année (PFA)}\\[4pt]
+  {\bfseries *****}
+\end{center}
+
+\vspace{0.45cm}
+\begin{center}
+\begin{tikzpicture}
+  \node[draw=brown!60!black,line width=0.6pt,fill=green!8,rounded corners=8pt,
+        inner xsep=10pt,inner ysep=12pt,text width=10.5cm,align=center]
+  {\bfseries\Large \TitreRapport};
+\end{tikzpicture}
+\end{center}
+
+\vspace{1.1cm}
+\hspace*{0.14\textwidth}%
+\begin{minipage}{0.84\textwidth}
+\begin{tabular}{r@{\hspace{0.45em}}l}
+\underline{Préparé par} : & \textit{\textbf{\NomEtudiant}} \\[7pt]
+\underline{Sous la direction de} : & \textit{\textbf{\EncadrantINSEA}} \textbf{(INSEA)} \\[2pt]
+                                  & \textit{\textbf{\EncadrantOrganisme}} \\
+\end{tabular}
+\end{minipage}
+
+\vspace{1.1cm}
+\begin{center}
+\textit{\textbf{Rapport élaboré comme exigence partielle du}}\\[9pt]
+{\large\bfseries Diplôme d'Ingénieur d'État}\\[7pt]
+{\bfseries \Filiere}
+\end{center}
+
+\vspace{0.65cm}
+\begin{center}
+\begin{minipage}{0.70\textwidth}
+\textit{Devant le jury composé exclusivement de :}\\[5pt]
+\textbf{\small$\blacksquare$}\quad\textit{\textbf{\JureUn}} \textbf{(INSEA)}\\[3pt]
+\textbf{\small$\blacksquare$}\quad\textit{\textbf{\JureDeux}} \textbf{(INSEA)}
+\end{minipage}
+\end{center}
+
+\vfill
+\begin{center}
+{\color{gray!70}\bfseries Année universitaire \AnneeUniversitaire}
+\end{center}
+\end{titlepage}
+\restoregeometry
+
+\clearpage\thispagestyle{empty}\null\clearpage
+
+%------------------------------------------------------------------------------
+% PAGES LIMINAIRES
+%------------------------------------------------------------------------------
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+\chapter*{Dédicace}
+\addcontentsline{toc}{chapter}{Dédicace}
+\thispagestyle{plain}
+\vspace{2cm}
+Je dédie ce travail à mes parents, à ma famille et à toutes les personnes qui
+ont soutenu mon parcours académique. Je l'adresse également à mes enseignants,
+à mes encadrants et à mes proches, dont les conseils et les encouragements ont
+accompagné la réalisation de ce projet.
+
+\newpage
+\chapter*{Remerciements}
+\addcontentsline{toc}{chapter}{Remerciements}
+\thispagestyle{plain}
+\vspace{1.5cm}
+Je remercie avant tout Dieu, le Très-Haut, pour la force et la persévérance
+accordées tout au long de cette expérience.
+
+J'adresse mes remerciements sincères à \EncadrantINSEA, pour son encadrement,
+ses conseils méthodologiques et son accompagnement. Je remercie également
+l'équipe de \textbf{3D Smart Factory} pour l'accueil, la disponibilité et le
+cadre professionnel offerts durant le stage.
+
+Je remercie enfin les membres du jury de l'INSEA pour l'attention portée à ce
+travail, ainsi que toutes les personnes ayant contribué, directement ou
+indirectement, à sa réalisation.
+
+\newpage
+\chapter*{Résumé}
+\addcontentsline{toc}{chapter}{Résumé}
+\thispagestyle{plain}
+
+Ce projet de fin d'année porte sur la conception et l'évaluation d'un assistant
+conversationnel fondé sur la génération augmentée par récupération
+(\textit{Retrieval-Augmented Generation}, RAG) pour interroger une documentation
+technique consacrée à Python, Scikit-learn et LangChain. L'objectif est de
+réduire le temps de recherche documentaire tout en limitant les réponses non
+soutenues par des sources.
+
+Le système met en œuvre une collecte de documentation officielle, un nettoyage
+et un découpage traçable des documents, une indexation FAISS, une recherche
+hybride associant BM25 et embeddings multilingues E5, puis un reranking BGE
+avant la génération par Mistral-7B-Instruct. Une interface Gradio permet à
+l'utilisateur de poser des questions et de consulter les sources associées.
+
+L'évaluation finale s'appuie sur 120 questions françaises équilibrées entre les
+trois domaines, accompagnées de réponses de référence et d'identifiants de
+chunks. Avec Ragas 0.4.3 et un juge Mistral, les métriques observées sont de
+0,888 pour la fidélité au contexte, 0,913 pour la pertinence des réponses,
+0,819 pour la précision du contexte, 0,879 pour le rappel du contexte et 0,693
+pour l'exactitude factuelle. L'analyse met en évidence une faiblesse plus
+marquée sur LangChain et la nécessité d'améliorer la gestion des questions hors
+périmètre.
+
+\medskip
+\noindent\textbf{Mots-clés :} RAG, grands modèles de langage, recherche
+hybride, FAISS, BM25, embeddings multilingues, reranking, Ragas, Mistral,
+documentation technique.
+
+\newpage
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\thispagestyle{plain}
+
+This final-year project focuses on the design and evaluation of a
+Retrieval-Augmented Generation (RAG) conversational assistant for querying
+technical documentation on Python, Scikit-learn, and LangChain. The objective
+is to reduce documentation-search time while limiting answers that are not
+supported by retrieved sources.
+
+The system implements official-documentation collection, cleaning and
+traceable chunking, FAISS indexing, hybrid BM25 and multilingual E5 retrieval,
+BGE reranking, and answer generation with Mistral-7B-Instruct. A Gradio
+interface enables users to submit questions and inspect associated sources.
+
+The final evaluation relies on 120 French questions balanced across the three
+domains, with reference answers and reference chunk identifiers. Using Ragas
+0.4.3 with a Mistral judge, the observed scores are 0.888 for faithfulness,
+0.913 for answer relevancy, 0.819 for context precision, 0.879 for context
+recall, and 0.693 for factual correctness. The analysis identifies a more
+pronounced weakness for LangChain and highlights the need for improved
+out-of-scope question handling.
+
+\medskip
+\noindent\textbf{Keywords:} RAG, large language models, hybrid retrieval,
+FAISS, BM25, multilingual embeddings, reranking, Ragas, Mistral, technical
+documentation.
+
+\newpage
+\tableofcontents
+\listoffigures
+\listoftables
+\newpage
+
+\chapter*{Liste des abréviations}
+\addcontentsline{toc}{chapter}{Liste des abréviations}
+\begin{longtable}{@{}p{3cm}p{10.5cm}@{}}
+\toprule
+\textbf{Abréviation} & \textbf{Signification}\\
+\midrule
+\endhead
+API & Application Programming Interface.\\
+BM25 & Best Matching 25, fonction de classement lexicale en recherche d'information.\\
+E5 & Famille de modèles d'embeddings textuels entraînés par apprentissage contrastif faiblement supervisé.\\
+FAISS & Facebook AI Similarity Search, bibliothèque de recherche de vecteurs similaires.\\
+GPU & Graphics Processing Unit.\\
+LLM & Large Language Model.\\
+PFA & Projet de Fin d'Année.\\
+RAG & Retrieval-Augmented Generation.\\
+Ragas & Retrieval Augmented Generation Assessment.\\
+UI & User Interface.\\
+\bottomrule
+\end{longtable}
+
+\clearpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+%=============================================================================
+% INTRODUCTION GÉNÉRALE
+%=============================================================================
+\chapter*{Introduction générale}
+\addcontentsline{toc}{chapter}{Introduction générale}
+\markboth{Introduction générale}{}
+
+Les grands modèles de langage ont profondément modifié la manière dont les
+utilisateurs accèdent à l'information technique. Ils peuvent reformuler une
+question et produire une réponse fluide, mais ils présentent une limite
+importante : une réponse grammaticalement plausible peut rester inexacte,
+incomplète ou dépourvue de source vérifiable. Cette limite est particulièrement
+sensible lorsqu'un développeur recherche une précision sur une API, un paramètre
+ou un comportement logiciel.
+
+La génération augmentée par récupération propose de relier la génération à une
+base documentaire externe. Le principe consiste à rechercher d'abord des
+passages pertinents dans le corpus, puis à fournir ces passages au modèle avant
+la génération de la réponse. L'architecture RAG formalise ainsi l'association
+entre une mémoire paramétrique, portée par le modèle de langage, et une mémoire
+non paramétrique, portée par l'index documentaire~\cite{lewis2020rag}.
+
+Le présent Projet de Fin d'Année a pour objectif de concevoir un assistant RAG
+spécialisé dans la documentation technique de Python, Scikit-learn et LangChain.
+Le système doit récupérer des passages de documentation officielle, générer une
+réponse concise et fournir les sources exploitées. Au-delà de l'implémentation,
+le projet vise à établir une démarche d'évaluation traçable et reproductible.
+
+La problématique peut être formulée ainsi :
+
+\begin{center}
+\begin{minipage}{0.88\linewidth}
+\itshape
+Comment concevoir un assistant RAG pour la documentation technique capable de
+fournir des réponses pertinentes et justifiées par des sources, tout en
+évaluant séparément la qualité de la récupération et de la génération ?
+\end{minipage}
+\end{center}
+
+Pour répondre à cette question, le rapport est organisé en cinq chapitres. Le
+premier présente l'organisme d'accueil et le besoin. Le deuxième décrit la
+démarche de conception. Le troisième expose les fondements théoriques. Le
+quatrième détaille la réalisation du système. Le cinquième présente le protocole
+expérimental, les résultats Ragas et leur analyse. Enfin, une discussion met en
+évidence les limites et les améliorations envisageables.
+
+%=============================================================================
+\chapter{Organisme d'accueil et contexte du projet}
+\label{chap:organisme}
+
+\section{Introduction}
+
+Ce chapitre situe le stage dans son environnement professionnel et présente le
+besoin auquel répond le projet. La réalisation d'un assistant documentaire ne
+constitue pas uniquement un exercice de programmation : elle répond à une
+problématique d'accès, de structuration et de fiabilité de l'information
+technique.
+
+\section{Présentation de 3D Smart Factory}
+
+Selon les éléments fournis dans le cadre du stage, \textbf{3D Smart Factory} est
+une structure marocaine basée à Mohammédia qui accompagne des porteurs de
+projets, des jeunes entrepreneurs et des entreprises à différentes étapes de
+leur développement. Son action couvre notamment l'idéation, le cadrage,
+l'accompagnement méthodologique, le développement de solutions et l'orientation
+vers la mise sur le marché.
+
+L'organisme se situe au croisement de l'innovation, du conseil, de l'appui aux
+projets technologiques et de l'entrepreneuriat. Ce positionnement favorise des
+missions où les méthodes issues de la recherche académique peuvent être
+transformées en prototypes concrets. Dans ce cadre, les technologies de
+l'intelligence artificielle et de l'analyse de données représentent des leviers
+pour produire des outils accessibles et directement exploitables.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=1.6cm,>=Latex]
+\node[draw,brown!60!black,rounded corners=5pt,fill=green!8,minimum width=3cm,
+      minimum height=1cm,align=center] (idea) {Idéation et\\cadrage};
+\node[draw,brown!60!black,rounded corners=5pt,fill=green!8,minimum width=3cm,
+      minimum height=1cm,align=center,right=of idea] (proto) {Prototypage et\\développement};
+\node[draw,brown!60!black,rounded corners=5pt,fill=green!8,minimum width=3cm,
+      minimum height=1cm,align=center,right=of proto] (market) {Accompagnement\\vers le marché};
+\draw[->,thick] (idea) -- (proto);
+\draw[->,thick] (proto) -- (market);
+\node[above=0.7cm of proto,font=\bfseries] {Logique d'accompagnement de 3D Smart Factory};
+\end{tikzpicture}
+\caption{Synthèse du positionnement de l'organisme d'accueil, d'après les informations fournies pour le stage.}
+\label{fig:3dsmartfactory}
+\end{figure}
+
+Les deux visuels institutionnels transmis pour le stage sont reproduits à la
+figure~\ref{fig:visuels-organisme}. Ils complètent la présentation de
+l'organisme sans se substituer aux informations de cadrage retenues dans ce
+rapport.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.47\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{assets/organisme_3dsmartfactory_01.png}
+  \vspace{2pt}
+  \small (a) Visuel institutionnel fourni pour le stage.
+\end{minipage}\hfill
+\begin{minipage}[t]{0.47\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{assets/organisme_3dsmartfactory_02.png}
+  \vspace{2pt}
+  \small (b) Visuel institutionnel fourni pour le stage.
+\end{minipage}
+\caption{Éléments visuels communiqués dans le cadre de la présentation de 3D Smart Factory.}
+\label{fig:visuels-organisme}
+\end{figure}
+
+\section{Organisation générale et intérêt du cadre de stage}
+
+L'organisation repose sur une logique d'accompagnement intégrée : une idée est
+progressivement transformée en projet opérationnel grâce à un appui technique,
+méthodologique et stratégique. Cette approche favorise une collaboration avec
+des profils complémentaires et une confrontation rapide entre les choix
+techniques et les contraintes d'usage.
+
+Dans le cas présent, le sujet RAG s'inscrit dans une démarche de valorisation
+de connaissances techniques. Un assistant documentaire peut faciliter la
+consultation de ressources complexes, améliorer la productivité lors de la
+recherche d'information et soutenir l'appropriation de technologies modernes
+par des utilisateurs non spécialistes.
+
+\section{Contexte, besoin et périmètre}
+
+La documentation officielle est généralement riche, mais volumineuse et
+répartie entre de nombreuses pages. Une question technique précise peut exiger
+la consultation de plusieurs sections, tandis que les moteurs de recherche
+classiques privilégient parfois une correspondance lexicale partielle. En
+parallèle, un modèle de langage généraliste peut répondre sans disposer de la
+version exacte de la documentation.
+
+Le besoin identifié consiste donc à concevoir un système qui aide l'utilisateur
+à interroger un corpus documentaire limité et identifiable. Le périmètre du
+projet couvre les trois domaines suivants : Python, Scikit-learn et LangChain.
+Pandas, Django, React ou d'autres bibliothèques non collectées ne font pas partie
+du corpus et ne doivent pas recevoir de réponse factuelle non sourcée.
+
+\begin{table}[H]
+\centering
+\caption{Exigences fonctionnelles et non fonctionnelles du projet.}
+\label{tab:exigences}
+\begin{tabularx}{\textwidth}{p{3.5cm}Y Y}
+\toprule
+\textbf{Catégorie} & \textbf{Exigence} & \textbf{Réponse apportée}\\
+\midrule
+Fonctionnelle & Poser une question technique. & Interface Gradio et fonction \texttt{pipeline.answer(question)}.\\
+Fonctionnelle & Retrouver des preuves documentaires. & Recherche hybride et affichage des sources.\\
+Fonctionnelle & Produire une réponse exploitable. & Génération Mistral guidée par le contexte extrait.\\
+Qualité & Limiter les réponses hors source. & Prompt contraint, provenance des chunks et garde hors périmètre.\\
+Qualité & Pouvoir reproduire l'expérience. & Notebook Kaggle, manifestes, fichiers JSON/CSV et versions du code.\\
+Sécurité & Ne pas exposer les clés API. & Utilisation de Kaggle Secrets pour les juges Ragas.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Objectifs du projet}
+
+Le projet poursuit trois objectifs complémentaires. Le premier est technique :
+construire un pipeline RAG complet, depuis la collecte de documents jusqu'à la
+génération d'une réponse. Le deuxième est applicatif : fournir une interface
+simple pour démontrer l'utilisation du système. Le troisième est scientifique :
+mesurer distinctement la qualité des contextes récupérés et la qualité des
+réponses générées.
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du Chapitre 1}
+
+L'environnement de 3D Smart Factory offre un cadre orienté vers l'innovation et
+la mise en œuvre de solutions concrètes. Le besoin retenu est celui d'un accès
+fiable à une documentation technique ciblée. Le chapitre suivant présente la
+démarche adoptée pour transformer ce besoin en architecture RAG reproductible.
+
+%=============================================================================
+\chapter{Démarche scientifique et conception de l'architecture}
+\label{chap:conception}
+
+\section{Méthodologie de réalisation}
+
+La réalisation a été structurée en étapes successives afin de séparer la qualité
+des données, la qualité de la récupération, la génération et l'évaluation. Cette
+séparation permet d'identifier plus facilement l'origine d'une erreur : une
+réponse faible peut provenir d'un corpus incomplet, d'une récupération mal
+classée ou d'une génération imprécise.
+
+\begin{table}[H]
+\centering
+\caption{Étapes de la démarche de réalisation.}
+\label{tab:demarche}
+\begin{tabularx}{\textwidth}{p{1.2cm}p{3.2cm}Y}
+\toprule
+\textbf{Étape} & \textbf{Intitulé} & \textbf{Production principale}\\
+\midrule
+1 & Collecte & Documents issus des dépôts et documentations officielles.\\
+2 & Nettoyage & Documents nettoyés, dédoublonnés et accompagnés de métadonnées.\\
+3 & Benchmarking & Paramètres de recherche testés sur les questions de développement.\\
+4 & Chunking et indexation & Chunks identifiés et index FAISS reproductible.\\
+5 & Recherche et génération & Réponse, sources et contexte exact inséré dans le prompt.\\
+6 & Évaluation & Artefacts Ragas, scores par question et manifestes d'exécution.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Architecture fonctionnelle}
+
+L'architecture est organisée autour de deux flux. Le premier est un flux hors
+ligne : il prépare le corpus et construit l'index. Le second est un flux en
+ligne : il traite la question de l'utilisateur, récupère des passages et génère
+une réponse. Cette organisation évite de répéter la collecte ou l'indexation à
+chaque question.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.8cm and 0.9cm,>=Latex,
+  block/.style={draw,rounded corners=4pt,fill=green!8,minimum width=2.55cm,
+  minimum height=0.8cm,align=center,font=\small},
+  data/.style={draw,rounded corners=4pt,fill=blue!6,minimum width=2.55cm,
+  minimum height=0.8cm,align=center,font=\small}]
+\node[data] (docs) {Documentation\\officielle};
+\node[block,right=of docs] (clean) {Nettoyage et\\dédoublonnage};
+\node[block,right=of clean] (chunk) {Chunks avec\\provenance};
+\node[data,right=of chunk] (index) {FAISS +\\BM25};
+\node[block,below=1.35cm of index] (retrieve) {Recherche hybride\\top 20};
+\node[block,left=of retrieve] (rerank) {Reranking BGE\\top 5};
+\node[block,left=of rerank] (guard) {Contrôle de\\périmètre};
+\node[block,left=of guard] (question) {Question\\utilisateur};
+\node[block,below=1.35cm of rerank] (llm) {Mistral-7B\\génération};
+\node[data,right=of llm] (answer) {Réponse +\\sources};
+\draw[->,thick] (docs)--(clean);
+\draw[->,thick] (clean)--(chunk);
+\draw[->,thick] (chunk)--(index);
+\draw[->,thick] (index)--(retrieve);
+\draw[->,thick] (retrieve)--(rerank);
+\draw[->,thick] (rerank)--(guard);
+\draw[->,thick] (question)--(guard);
+\draw[->,thick] (guard)--(llm);
+\draw[->,thick] (llm)--(answer);
+\draw[->,dashed] (guard.south) to[bend right=25] node[left,font=\scriptsize,align=center]{hors\\périmètre} (answer.south);
+\end{tikzpicture}
+\caption{Architecture fonctionnelle de l'assistant RAG.}
+\label{fig:architecture}
+\end{figure}
+
+\section{Choix des données et traçabilité}
+
+Le corpus est constitué à partir de documentations techniques officielles. Ce
+choix réduit la dépendance à des contenus non vérifiés et facilite la citation
+des sources. Chaque chunk possède un identifiant stable, l'identifiant du
+document, l'URL d'origine, la version de la source et une empreinte de contenu.
+Cette information permet de relier une réponse, un passage utilisé et une ligne
+du jeu d'évaluation.
+
+Le dédoublonnage est appliqué physiquement aux documents nettoyés, afin que le
+nombre de documents annoncé corresponde réellement au corpus indexé. Cette
+précaution est importante pour la reproductibilité : une différence entre le
+corpus déclaré et le corpus interrogé rendrait les résultats difficiles à
+interpréter.
+
+\section{Stratégie de récupération}
+
+La version finale associe une recherche dense et une recherche lexicale. Le
+modèle \texttt{intfloat/\allowbreak multilingual-e5-\allowbreak base} encode la question française avec
+le préfixe \texttt{query:} et les passages avec le préfixe \texttt{passage:}.
+Ce choix est adapté à la présence de questions françaises et de documentation
+principalement anglaise. Les embeddings de phrases permettent de représenter et
+comparer des contenus sémantiquement similaires~\cite{reimers2019sbert,wange5}.
+
+La recherche BM25 conserve une capacité utile pour les noms d'API et les termes
+techniques exacts. Les scores dense et lexical sont combinés avant de sélectionner
+vingt candidats. Un reranker cross-encoder BGE réordonne ensuite ces candidats
+et conserve les cinq passages remis au générateur. La séparation entre candidats
+et contextes finaux limite le bruit transmis au modèle de génération.
+
+\section{Critères de conception de l'évaluation}
+
+Une baseline historique de 20 questions est conservée comme diagnostic initial.
+L'évaluation principale s'appuie cependant sur 120 questions : 40 pour Python,
+40 pour Scikit-learn et 40 pour LangChain. Chaque enregistrement comprend une
+question française, une réponse de référence, des URLs documentaires et un ou
+plusieurs identifiants de chunks de référence. Ce dispositif rend possible une
+analyse de récupération indépendante du jugement automatique.
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du Chapitre 2}
+
+La démarche retenue sépare clairement préparation des données, récupération,
+génération et évaluation. Cette séparation constitue une condition essentielle
+pour diagnostiquer le système et améliorer une composante sans masquer les
+limites d'une autre. Le chapitre suivant précise les fondements théoriques qui
+justifient ces choix.
+
+%=============================================================================
+\chapter{Fondements théoriques}
+\label{chap:theorie}
+
+\section{Grands modèles de langage et génération conditionnée}
+
+Un grand modèle de langage prédit la suite la plus probable d'une séquence de
+tokens en s'appuyant sur des régularités apprises durant son entraînement. Cette
+capacité permet de produire des explications naturelles, mais ne garantit pas
+que le modèle possède une connaissance exacte, récente ou vérifiable sur un
+sujet donné. Une réponse peut être fluide tout en étant incorrecte.
+
+La génération conditionnée par un contexte documentaire vise à réduire ce
+risque. Le modèle génératif reçoit la question et les passages retrouvés ; son
+rôle est alors de synthétiser une réponse en se limitant à cette evidence. Dans
+ce projet, Mistral-7B-Instruct constitue le générateur local exécuté sur GPU
+avec quantification 4-bit~\cite{jiang2023mistral}.
+
+\section{Principe de la génération augmentée par récupération}
+
+Le RAG combine une mémoire paramétrique, intégrée dans le modèle de langage, et
+une mémoire externe consultable au moment de la question. Lewis et al.
+montrent que cette association permet d'utiliser un index de passages pour
+améliorer la génération sur des tâches nécessitant des connaissances
+spécifiques~\cite{lewis2020rag}.
+
+Dans le cas d'une documentation technique, la mémoire externe présente deux
+avantages majeurs. Elle peut être mise à jour sans réentraîner le modèle et
+elle fournit une provenance pour les réponses. Néanmoins, l'amélioration de la
+génération dépend directement de la qualité des passages récupérés : un contexte
+hors sujet peut conduire à une réponse hors sujet.
+
+\section{Embeddings, similarité vectorielle et FAISS}
+
+Un embedding transforme un texte en vecteur numérique de dimension fixe. Deux
+textes sémantiquement proches ont alors tendance à présenter des vecteurs plus
+proches selon une mesure telle que la similarité cosinus. Sentence-BERT a
+popularisé cette approche en produisant des embeddings de phrases efficaces
+pour la recherche sémantique~\cite{reimers2019sbert}.
+
+FAISS est utilisé pour indexer les vecteurs des chunks et retrouver rapidement
+les voisins les plus proches d'une question encodée. Les travaux de Johnson,
+Douze et Jégou décrivent des techniques de recherche de similarité à grande
+échelle adaptées aux vecteurs de forte dimension~\cite{johnson2017faiss}. Dans
+le présent projet, FAISS assure le premier niveau de récupération dense.
+
+\section{Recherche BM25 et recherche hybride}
+
+BM25 est une fonction de classement issue de la recherche d'information. Elle
+valorise notamment la présence de termes de la requête dans un document, tout en
+corrigeant la fréquence des mots et la longueur des documents~\cite{robertson2009bm25}.
+Cette approche reste particulièrement pertinente lorsqu'une question contient
+un nom de fonction, une classe ou un paramètre exact.
+
+La recherche dense capte davantage le sens général, tandis que BM25 favorise
+les correspondances lexicales. Leur combinaison est appelée recherche hybride.
+Elle est utile pour des questions techniques, car celles-ci mélangent souvent
+un concept exprimé en langage naturel et un symbole ou une API précise.
+
+\section{Reranking par cross-encoder}
+
+La recherche initiale privilégie la vitesse : elle doit examiner un grand nombre
+de chunks. Le reranking intervient ensuite sur un ensemble réduit de candidats.
+Un cross-encoder évalue conjointement la question et un passage et peut donc
+produire un classement plus fin qu'une simple comparaison de vecteurs. Cette
+approche à deux étapes est courante pour améliorer la précision finale de la
+recherche~\cite{nogueira2019passagererank}.
+
+Le projet utilise \texttt{BAAI/bge-reranker-v2-m3}, un reranker multilingue. Il
+réordonne les vingt candidats hybrides et transmet les cinq meilleurs passages
+au générateur. Ce paramètre \textit{top 5} est également réutilisé dans
+l'évaluation des contextes.
+
+\section{Hallucination et contrôle du périmètre}
+
+Une hallucination désigne ici une information non soutenue par les documents
+fournis ou une réponse donnée alors que le corpus ne couvre pas le sujet. Le
+prompt impose donc au générateur de s'appuyer uniquement sur les passages
+extraits et d'indiquer une insuffisance documentaire lorsque les passages ne
+permettent pas de répondre.
+
+Cette instruction reste utile mais insuffisante. Le projet ajoute en conséquence
+un contrôle déterministe de périmètre. Si une bibliothèque explicitement absente
+du corpus est identifiée, comme \texttt{pandas} ou l'alias \texttt{pd.}, le
+pipeline renvoie un refus avant la récupération et avant l'appel au modèle
+Mistral. Cette décision réduit à la fois le risque de réponse inventée et le
+coût de calcul.
+
+\section{Évaluation Ragas}
+
+Ragas propose des métriques destinées à mesurer plusieurs dimensions d'un
+système RAG, notamment la récupération et la fidélité de la réponse au
+contexte~\cite{es2023ragas}. Dans le protocole final, les métriques sont
+calculées avec un juge Mistral externe. Elles sont complétées par des mesures
+déterministes fondées sur les identifiants de chunks de référence.
+
+\begin{table}[H]
+\centering
+\caption{Interprétation des métriques utilisées dans l'évaluation finale.}
+\label{tab:metriques}
+\begin{tabularx}{\textwidth}{p{3.4cm}Y}
+\toprule
+\textbf{Métrique} & \textbf{Interprétation dans le projet}\\
+\midrule
+Faithfulness & Vérifie si les affirmations de la réponse sont soutenues par les contextes remis au générateur.\\
+Answer Relevancy & Vérifie si la réponse traite effectivement la question posée.\\
+Context Precision & Évalue si les passages récupérés sont utiles pour répondre.\\
+Context Recall & Évalue si les passages récupérés couvrent les informations nécessaires.\\
+Factual Correctness & Compare la réponse générée à la réponse de référence.\\
+Hit@5 et MRR@5 & Mesures déterministes indiquant la présence et le rang du chunk de référence dans les cinq passages récupérés.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du Chapitre 3}
+
+Les fondements théoriques montrent que la qualité d'un système RAG dépend d'une
+chaîne complète : documents, représentation vectorielle, classement, contexte,
+génération et protocole d'évaluation. Le chapitre suivant décrit la traduction
+concrète de ces principes dans le code et le notebook Kaggle.
+
+%=============================================================================
+\chapter{Réalisation du système RAG}
+\label{chap:realisation}
+
+\section{Environnement de développement}
+
+Le système est développé en Python et exécuté principalement dans Kaggle. Cet
+environnement fournit un GPU T4 compatible avec la quantification 4-bit du
+modèle génératif. Le code est organisé en scripts correspondant aux étapes du
+pipeline, complétés par des modules partagés pour le chunking, la recherche,
+l'évaluation et l'interface.
+
+\begin{table}[H]
+\centering
+\caption{Composants logiciels principaux.}
+\label{tab:outils}
+\begin{tabularx}{\textwidth}{p{3.5cm}Y Y}
+\toprule
+\textbf{Composant} & \textbf{Technologie} & \textbf{Rôle}\\
+\midrule
+Langage & Python & Implémentation de l'ensemble du pipeline.\\
+Index vectoriel & FAISS & Recherche sémantique des chunks.\\
+Embeddings & multilingual-e5-base & Encodage des questions françaises et des passages.\\
+Recherche lexicale & SimpleBM25 & Correspondance des termes techniques et APIs.\\
+Reranking & bge-reranker-v2-m3 & Réordonnancement précis des candidats.\\
+Génération & Mistral-7B-Instruct-v0.3 & Génération locale de réponses en contexte.\\
+Évaluation & Ragas 0.4.3 & Mesures de récupération et de génération.\\
+Interface & Gradio & Démonstration interactive dans Kaggle.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Collecte, nettoyage et découpage}
+
+Les documents Python, Scikit-learn et LangChain sont collectés depuis leurs
+sources officielles. Le nettoyage supprime les éléments non utiles et conserve
+les informations nécessaires à la provenance. Les documents nettoyés sont
+ensuite divisés en chunks de taille contrôlée. Un chunk comprend son texte et
+des métadonnées telles que \texttt{chunk\_id}, \texttt{document\_id},
+\texttt{doc\_url} et une empreinte de contenu.
+
+L'identité stable des chunks est essentielle au protocole final. Elle rend
+possible l'annotation des passages de référence et permet de distinguer une
+mauvaise réponse causée par la génération d'une mauvaise réponse causée par la
+récupération.
+
+\section{Indexation et recherche hybride}
+
+Lors de l'indexation, les chunks sont transformés en vecteurs. Les préfixes E5
+sont respectés : \texttt{passage:} pour les chunks et \texttt{query:} pour les
+questions. Les vecteurs sont normalisés avant la recherche de similarité.
+
+La fonction de récupération interroge d'abord FAISS et BM25, fusionne les scores
+selon un coefficient $\alpha=0{,}7$, récupère vingt candidats et applique le
+reranker BGE. Les cinq premiers passages deviennent le contexte exact transmis
+au modèle. Ce contexte est sauvegardé pendant l'évaluation afin de rendre les
+scores auditables.
+
+\begin{lstlisting}[caption={Principe simplifié de recherche hybride et reranking.},label={lst:retrieval}]
+# La question est encodee avec le prefixe E5 approprie.
+query_embedding = embedding_model.encode(["query: " + question])
+
+# FAISS et BM25 produisent des scores complementaires.
+hybrid_scores = alpha * dense_scores + (1 - alpha) * bm25_scores
+candidates = top_k(hybrid_scores, k=20)
+
+# Le cross-encoder reordonne seulement les 20 candidats.
+final_contexts = reranker.rank(question, candidates)[:5]
+\end{lstlisting}
+
+\section{Génération de la réponse}
+
+Le modèle Mistral est chargé à la demande par le client Hugging Face. Le prompt
+contient la question, les passages numérotés et des règles explicites : répondre
+uniquement à partir des passages, citer les identifiants de passages et ne pas
+inventer d'API ou de paramètres absents du contexte. Une température faible est
+utilisée afin de privilégier des réponses factuelles et stables.
+
+\section{Interface Gradio}
+
+L'interface permet de saisir une question, d'afficher la réponse et de consulter
+les sources récupérées. La même instance du pipeline est réutilisée afin
+d'éviter le chargement multiple du modèle sur le GPU. Lorsque le pipeline
+détecte un sujet explicitement hors périmètre, l'interface affiche un statut
+clair au lieu de montrer des sources potentiellement trompeuses.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=1.2cm and 1.1cm,>=Latex,
+  box/.style={draw,rounded corners=4pt,fill=green!8,minimum width=3.3cm,
+  minimum height=0.9cm,align=center,font=\small}]
+\node[box] (q) {Question utilisateur};
+\node[box,right=of q] (check) {Contrôle de périmètre};
+\node[box,right=of check] (r) {Réponse sourcée};
+\node[below=0.9cm of check,draw,rounded corners=4pt,fill=red!7,minimum width=3.5cm,
+ align=center,font=\small] (refuse) {Refus clair : corpus insuffisant\\ou bibliothèque non couverte};
+\draw[->,thick] (q)--(check);
+\draw[->,thick] (check)--node[above,font=\scriptsize]{contexte suffisant}(r);
+\draw[->,thick] (check)--node[right,font=\scriptsize]{hors périmètre}(refuse);
+\end{tikzpicture}
+\caption{Comportement de l'interface face à une question hors périmètre.}
+\label{fig:guard}
+\end{figure}
+
+\section{Protection contre les questions hors périmètre}
+
+Le cas \texttt{pd.head()} a montré qu'un système spécialisé ne doit pas répondre
+à une bibliothèque non incluse dans son corpus. Une réponse antérieure avait
+produit une liste de noms hors sujet, car le générateur avait reçu des passages
+non pertinents. La correction ajoutée vérifie donc des alias et des noms de
+bibliothèques explicitement non couverts avant toute génération.
+
+\begin{lstlisting}[caption={Logique simplifiée de protection hors périmètre.},label={lst:guard}]
+def explicit_scope_refusal(question, config):
+    topic = detect_unsupported_library(question, config)
+    if topic:
+        return {
+            "allow_answer": False,
+            "status": "hors_perimetre",
+            "message": "Bibliotheque absente du corpus actuel."
+        }
+    return None
+
+refusal = explicit_scope_refusal(question, scope_config)
+if refusal is not None:
+    return refusal              # Mistral n'est pas appele
+contexts = retrieve(question)   # seulement pour une question couverte
+\end{lstlisting}
+
+Le seuil numérique de score est conservé comme amélioration future. Les scores
+de reranking ne sont pas des probabilités universelles ; ils doivent être
+calibrés avec un jeu dédié de questions dans et hors périmètre avant de servir
+à un refus automatique. Cette décision évite de rejeter arbitrairement des
+questions valides en français portant sur une documentation anglaise.
+
+\section{Notebook Kaggle et sauvegarde des artefacts}
+
+Le notebook français pilote les étapes du pipeline et distingue deux modes :
+\texttt{PREPARATION} pour créer les artefacts et \texttt{EVALUATION\_FINALE}
+pour exécuter Ragas sur le jeu de 120 questions. Les résultats sont exportés
+sous forme de JSON, CSV, graphiques et archive ZIP. Les clés API ne sont pas
+insérées dans le notebook : elles sont lues depuis les secrets Kaggle.
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du Chapitre 4}
+
+La réalisation met en œuvre l'ensemble du cycle RAG et ajoute des mécanismes de
+traçabilité et de protection. Le chapitre suivant présente l'évaluation des
+réponses obtenues, en distinguant les résultats valides des limites
+méthodologiques encore présentes.
+
+%=============================================================================
+\chapter{Évaluation expérimentale et analyse des résultats}
+\label{chap:evaluation}
+
+\section{Protocole expérimental}
+
+L'évaluation comprend deux niveaux. La première baseline a été exécutée sur 20
+questions avec un évaluateur personnalisé inspiré de Ragas. Elle est conservée
+comme diagnostic initial et ne doit pas être écrasée. L'évaluation principale
+utilise Ragas 0.4.3 sur 120 questions françaises, équilibrées entre Python,
+Scikit-learn et LangChain.
+
+Le jeu final contient une réponse de référence, des URLs de documentation et des
+identifiants de chunks pour chaque question. La validation des références est
+tracée comme une validation experte assistée par IA à relecteur unique. Cette
+précision doit être déclarée : elle ne constitue pas une annotation indépendante
+par plusieurs évaluateurs humains.
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des protocoles de la baseline et de l'évaluation finale.}
+\label{tab:protocoles}
+\begin{tabularx}{\textwidth}{p{3.5cm}Y Y}
+\toprule
+\textbf{Caractéristique} & \textbf{Baseline historique} & \textbf{Évaluation finale}\\
+\midrule
+Nombre de questions & 20 & 120 (40 par domaine).\\
+Évaluateur & Code personnalisé inspiré de Ragas. & Ragas 0.4.3 officiel avec juge Mistral.\\
+Références de contexte & Non systématiquement annotées. & IDs de chunks et URLs de référence.\\
+Rôle & Diagnostic initial. & Évaluation principale du système final.\\
+Comparaison numérique & Non comparable strictement. & Protocole plus large et plus traçable.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Configuration de l'évaluation finale}
+
+Le générateur local est \texttt{mistralai/Mistral-7B-Instruct-v0.3}. Le juge
+Ragas est \texttt{mistral-small-latest}, appelé via l'interface asynchrone
+compatible OpenAI de Mistral. Cette séparation évite de confondre le modèle qui
+répond à l'utilisateur et le modèle qui juge la réponse.
+
+Le run analysé est identifié par \texttt{final\_120\_20260827T154025Z}. Le
+runner sauvegarde la question, la réponse, les chunks récupérés, le contexte
+exact transmis au générateur, les scores, les raisons et les erreurs éventuelles.
+Cette granularité permet un audit par question, au-delà des seules moyennes.
+
+\section{Couverture de l'évaluation}
+
+Le passage au juge Mistral a permis de calculer les métriques Ragas pour la
+quasi-totalité des échantillons. Sur 120 questions, 114 sont entièrement
+évaluées et 6 sont partielles. Aucun échantillon n'est en échec complet.
+
+\begin{table}[H]
+\centering
+\caption{État d'exécution des 120 évaluations finales.}
+\label{tab:couverture}
+\begin{tabular}{lrr}
+\toprule
+\textbf{État} & \textbf{Nombre} & \textbf{Part}\\
+\midrule
+Échantillons entièrement évalués & 114 & 95,0\%\\
+Échantillons partiellement évalués & 6 & 5,0\%\\
+Échecs complets & 0 & 0,0\%\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Les six valeurs manquantes résultent de réponses incomplètes du juge (limite de
+tokens) ou d'indisponibilités temporaires du service Mistral. Elles ne doivent
+pas être transformées artificiellement en score nul. Le runner conserve la
+valeur absente et enregistre l'erreur, ce qui préserve l'intégrité du résultat.
+
+\section{Résultats Ragas globaux}
+
+Les résultats globaux de l'exécution sont présentés au tableau~\ref{tab:ragasglobal}.
+Un score proche de 1 est favorable. Les taux de couverture indiquent la part des
+questions pour lesquelles une valeur a effectivement été calculée.
+
+\begin{table}[H]
+\centering
+\caption{Résultats Ragas globaux sur 120 questions.}
+\label{tab:ragasglobal}
+\begin{tabularx}{\textwidth}{p{3.2cm}p{2.2cm}p{2.6cm}Y}
+\toprule
+\textbf{Métrique} & \textbf{Moyenne} & \textbf{Couverture} & \textbf{Interprétation}\\
+\midrule
+Faithfulness & \textbf{0,888} & 116/120 & Les réponses sont globalement justifiées par les passages fournis.\\
+Answer Relevancy & \textbf{0,913} & 120/120 & Les réponses traitent le plus souvent la question posée.\\
+Context Precision & \textbf{0,819} & 119/120 & Les passages sont souvent utiles, mais le classement peut être amélioré.\\
+Context Recall & \textbf{0,879} & 120/120 & Les informations nécessaires sont fréquemment présentes dans le contexte.\\
+Factual Correctness & \textbf{0,693} & 118/120 & L'exactitude par rapport aux références est l'axe principal d'amélioration.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Le système présente un bon niveau d'ancrage documentaire : Faithfulness et
+Answer Relevancy sont élevées. Cependant, Factual Correctness est sensiblement
+plus basse. Ce résultat signifie qu'une réponse peut être pertinente et
+soutenue par un contexte, tout en restant imprécise, trop générale ou incomplète
+par rapport à la réponse de référence.
+
+\section{Résultats par domaine}
+
+\begin{table}[H]
+\centering
+\caption{Moyennes Ragas par domaine.}
+\label{tab:ragasdomaines}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Domaine} & \textbf{Faith.} & \textbf{Rel.} & \textbf{C. Prec.} & \textbf{C. Rec.} & \textbf{Fact. Corr.}\\
+\midrule
+Python & 0,890 & 0,910 & \textbf{0,869} & 0,875 & \textbf{0,758}\\
+Scikit-learn & \textbf{0,891} & \textbf{0,924} & 0,864 & \textbf{0,925} & 0,708\\
+LangChain & 0,882 & 0,907 & 0,726 & 0,838 & 0,611\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Python obtient la meilleure exactitude factuelle, tandis que Scikit-learn
+présente le meilleur rappel de contexte. LangChain est le domaine le plus
+difficile : la précision des contextes, le rappel et l'exactitude factuelle y
+sont les plus faibles. Cette observation est cohérente avec une documentation
+plus hétérogène, comportant de nombreuses pages d'intégration et des concepts
+proches lexicalement mais distincts fonctionnellement.
+
+\section{Diagnostic déterministe de récupération}
+
+Les identifiants de chunks annotés permettent de calculer des métriques de
+récupération indépendantes du juge LLM. Un Hit@5 de 0,792 indique qu'au moins
+un chunk de référence est présent parmi les cinq passages récupérés pour 95
+questions sur 120. Le MRR@5 de 0,633 indique que le premier chunk de référence
+est souvent bien classé, mais pas systématiquement premier.
+
+\begin{table}[H]
+\centering
+\caption{Diagnostic déterministe de récupération.}
+\label{tab:retrievaldiag}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Domaine} & \textbf{Hit@5} & \textbf{MRR@5} & \textbf{Référence absente du top 5}\\
+\midrule
+Python & 0,800 & 0,618 & 8/40\\
+Scikit-learn & \textbf{0,925} & \textbf{0,754} & 3/40\\
+LangChain & \textbf{0,650} & \textbf{0,527} & 14/40\\
+\midrule
+Global & 0,792 & 0,633 & 25/120\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La précision déterministe par identifiants est faible (environ 0,240), mais elle
+doit être interprétée avec précaution. Le système retourne systématiquement cinq
+chunks, alors que de nombreuses questions n'ont qu'un seul chunk de référence.
+Même avec ce chunk parfaitement classé en première position, la précision par
+identifiants est alors mécaniquement égale à $1/5=0{,}20$. Hit@5, MRR@5 et
+rappel constituent donc des compléments indispensables.
+
+\section{Analyse qualitative de cas faibles}
+
+L'analyse des échantillons individuels confirme que les moyennes cachent des
+comportements variés. La question sur la différence entre LangChain et LangGraph
+présente une faible pertinence et une faible précision de contexte. La question
+sur la compression automatique de contexte dans Deep Agents présente une
+fidélité nulle. D'autres cas faibles concernent les annotations de types Python,
+le choix de scaler Scikit-learn en présence de valeurs aberrantes et le choix de
+métrique avant l'optimisation d'hyperparamètres.
+
+Ces observations conduisent à une conclusion opérationnelle : les améliorations
+futures doivent prioriser le corpus et le classement LangChain, plutôt que de
+remplacer immédiatement le générateur. La qualité de la réponse dépend d'abord
+de la présence d'un passage pertinent dans le top 5.
+
+\section{Limite identifiée dans le jeu de test}
+
+Un contrôle post-exécution a détecté cinq lignes mal formées dans le jeu de test
+final. Dans ces enregistrements, le champ question contient une phrase
+déclarative proche d'une réponse, tandis que le champ de référence contient une
+URL au lieu d'une réponse textuelle. Les identifiants concernés sont
+\texttt{test\_python\_020}, \texttt{test\_python\_022},
+\texttt{test\_python\_024}, \texttt{test\_python\_032} et
+\texttt{test\_scikit\_learn\_003}.
+
+Cette anomalie concerne 4,2\% du jeu. Une analyse de sensibilité effectuée sur
+les 115 lignes correctement formées donne une vision plus prudente des résultats
+provisoires.
+
+\begin{table}[H]
+\centering
+\caption{Analyse de sensibilité sur les 115 questions correctement formées.}
+\label{tab:sensibilite}
+\begin{tabular}{lr}
+\toprule
+\textbf{Métrique} & \textbf{Moyenne sur 115 lignes}\\
+\midrule
+Faithfulness & 0,888\\
+Answer Relevancy & 0,916\\
+Context Precision & 0,847\\
+Context Recall & 0,917\\
+Factual Correctness & 0,698\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Les conclusions principales restent stables, mais une présentation académique
+rigoureuse doit signaler cette limite. Les cinq lignes doivent être corrigées et
+le run doit être reproduit une fois avant de qualifier les valeurs de scores
+finals définitivement gelés.
+
+\section{Positionnement par rapport à la baseline}
+
+La baseline de 20 questions obtenait des valeurs de 0,789 pour la fidélité,
+0,727 pour la pertinence, 0,562 pour la précision de contexte et 0,625 pour le
+rappel de contexte. Ces chiffres ne doivent pas être comparés directement aux
+scores Ragas finaux, car les questions, l'implémentation des métriques et le
+juge diffèrent.
+
+La formulation correcte est la suivante : la baseline a joué le rôle de
+diagnostic initial ; l'évaluation finale constitue un protocole plus large, plus
+équilibré et mieux documenté. Le projet démontre ainsi une amélioration de la
+rigueur expérimentale, sans revendiquer une progression numérique stricte entre
+deux protocoles non identiques.
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du Chapitre 5}
+
+L'évaluation finale fournit des résultats Ragas majoritairement calculés et
+traçables. Les scores élevés de fidélité et de pertinence constituent des signes
+encourageants. Les faiblesses observées portent principalement sur l'exactitude
+factuelle et sur la récupération dans le domaine LangChain. Les limites du jeu
+de test et du juge sont explicitement documentées, ce qui renforce la valeur
+scientifique de l'analyse.
+
+%=============================================================================
+\chapter{Discussion, limitations et perspectives}
+\label{chap:discussion}
+
+\section{Bilan des contributions}
+
+Le projet a permis de construire un pipeline RAG complet et reproductible pour
+un corpus documentaire technique. Les contributions principales sont la
+traçabilité stable des chunks, l'association entre recherche dense et lexicale,
+le reranking multilingue, l'interface Gradio, le jeu d'évaluation de 120
+questions et la sauvegarde d'artefacts détaillés d'exécution.
+
+La valeur du travail ne réside pas uniquement dans les scores moyens, mais dans
+la capacité à expliquer leur origine. Le manifeste d'index, le contexte exact du
+prompt, les identifiants de chunks et les erreurs par question rendent possible
+une analyse qui sépare récupération, génération et disponibilité des services
+externes.
+
+\section{Difficultés rencontrées et résolution}
+
+Plusieurs difficultés techniques ont été rencontrées lors de l'évaluation. La
+première concernait des incompatibilités d'interface entre Ragas et les classes
+d'embeddings : certaines méthodes asynchrones étaient exigées par Ragas. Une
+implémentation concrète de l'interface moderne d'embeddings a été ajoutée et
+couverte par des tests.
+
+La seconde difficulté concernait le juge OpenAI, dont le quota API était nul.
+Le juge a alors été remplacé par Mistral via son interface compatible OpenAI et
+un client asynchrone. Cette adaptation a permis de calculer les métriques Ragas
+pour l'essentiel des 120 questions. Enfin, des erreurs temporaires de réseau ou
+de sortie incomplète du juge ont été conservées de façon transparente plutôt que
+remplacées par des valeurs arbitraires.
+
+\section{Limitations}
+
+\begin{table}[H]
+\centering
+\caption{Limitations et réponses proposées.}
+\label{tab:limitations}
+\begin{tabularx}{\textwidth}{p{4.0cm}Y Y}
+\toprule
+\textbf{Limitation} & \textbf{Impact} & \textbf{Perspective}\\
+\midrule
+Cinq lignes de test mal formées & Les scores à 120 lignes restent provisoires. & Corriger les enregistrements puis relancer une seule évaluation finale.\\
+Validation experte par IA unique & Variabilité possible de l'annotation des références. & Ajouter une revue humaine ou un second évaluateur indépendant.\\
+Faiblesse LangChain & 14 références absentes du top 5. & Enrichir les sources, filtrer par section et ajuster le reranking.\\
+Questions hors périmètre & Risque de réponse trompeuse. & Garde déterministe et calibration ultérieure d'un seuil de confiance.\\
+Juge API externe & Risque de quota ou d'indisponibilité. & Prévoir un fournisseur de secours et conserver les artefacts d'erreurs.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Perspectives d'amélioration}
+
+La première priorité est la correction des cinq lignes du jeu de test, suivie
+d'une unique réexécution finale de Ragas. La deuxième priorité est
+l'amélioration ciblée de LangChain. Elle peut reposer sur l'ajout de pages
+spécifiques, la normalisation des URLs, des filtres par domaine ou par section,
+et une étude des questions dont la référence est absente du top 5.
+
+La troisième priorité concerne la robustesse de l'interface. La garde hors
+périmètre peut être étendue par un seuil calibré sur un jeu de questions dans et
+hors corpus. L'interface pourrait aussi afficher les extraits de passages et
+une estimation de confiance, afin que l'utilisateur comprenne le fondement de
+la réponse.
+
+Enfin, une évaluation plus robuste pourrait associer le juge automatique à une
+revue humaine d'un sous-échantillon. La comparaison entre plusieurs juges et
+plusieurs annotateurs permettrait d'étudier la stabilité des métriques et de
+renforcer la validité externe des conclusions.
+
+%=============================================================================
+\chapter*{Conclusion générale}
+\addcontentsline{toc}{chapter}{Conclusion générale}
+\markboth{Conclusion générale}{}
+
+Ce Projet de Fin d'Année a porté sur la conception et l'évaluation d'un assistant
+RAG dédié à la documentation technique de Python, Scikit-learn et LangChain. Le
+système combine une collecte de sources officielles, un nettoyage et un
+chunking traçables, une indexation FAISS, une recherche hybride BM25--E5, un
+reranking BGE et une génération par Mistral.
+
+La mise en place d'un protocole à 120 questions, de références documentaires et
+d'identifiants de chunks constitue une contribution méthodologique importante.
+L'exécution Ragas avec un juge Mistral a produit une fidélité au contexte de
+0,888 et une pertinence de réponse de 0,913, ce qui indique que les réponses
+sont généralement reliées aux passages récupérés et aux questions formulées.
+L'exactitude factuelle de 0,693 révèle toutefois qu'une réponse pertinente ne
+suffit pas : la précision par rapport à une référence reste un enjeu central.
+
+Le travail met également en évidence des limites clairement identifiées :
+LangChain est moins bien récupéré que les deux autres domaines, cinq lignes du
+jeu final doivent être corrigées et une validation à plusieurs annotateurs
+renforcerait la démarche. Ces limites ne diminuent pas l'intérêt du projet ;
+elles constituent au contraire une base précise pour une amélioration future,
+plus contrôlée et plus mesurable.
+
+En conclusion, le projet montre qu'un assistant RAG spécialisé peut offrir un
+accès plus structuré et plus sourcé à une documentation technique. Sa valeur
+professionnelle repose sur la combinaison d'une architecture opérationnelle,
+d'une interface de démonstration et d'une évaluation reproductible qui ne
+masque ni les performances observées ni les limites restantes.
+
+%=============================================================================
+% BIBLIOGRAPHIE IEEE INTÉGRÉE
+%=============================================================================
+\clearpage
+\addcontentsline{toc}{chapter}{Bibliographie}
+\begin{thebibliography}{99}
+
+\bibitem{lewis2020rag}
+P. Lewis, E. Perez, A. Piktus et al., ``Retrieval-Augmented Generation for
+Knowledge-Intensive NLP Tasks,'' \textit{Advances in Neural Information
+Processing Systems}, vol. 33, 2020. Disponible : \url{https://arxiv.org/abs/2005.11401}.
+
+\bibitem{reimers2019sbert}
+N. Reimers et I. Gurevych, ``Sentence-BERT: Sentence Embeddings using Siamese
+BERT-Networks,'' \textit{Proceedings of EMNLP-IJCNLP}, 2019. Disponible :
+\url{https://arxiv.org/abs/1908.10084}.
+
+\bibitem{johnson2017faiss}
+J. Johnson, M. Douze et H. Jégou, ``Billion-scale similarity search with
+GPUs,'' \textit{arXiv preprint arXiv:1702.08734}, 2017. Disponible :
+\url{https://arxiv.org/abs/1702.08734}.
+
+\bibitem{robertson2009bm25}
+S. Robertson et H. Zaragoza, ``The Probabilistic Relevance Framework: BM25 and
+Beyond,'' \textit{Foundations and Trends in Information Retrieval}, vol. 3,
+no. 4, pp. 333--389, 2009.
+
+\bibitem{nogueira2019passagererank}
+R. Nogueira et K. Cho, ``Passage Re-ranking with BERT,'' \textit{arXiv preprint
+arXiv:1901.04085}, 2019. Disponible : \url{https://arxiv.org/abs/1901.04085}.
+
+\bibitem{wange5}
+L. Wang, N. Yang, X. Huang et al., ``Text Embeddings by Weakly-Supervised
+Contrastive Pre-training,'' \textit{arXiv preprint arXiv:2212.03533}, 2022.
+Disponible : \url{https://arxiv.org/abs/2212.03533}.
+
+\bibitem{jiang2023mistral}
+A. Q. Jiang, A. Sablayrolles, A. Roux et al., ``Mistral 7B,'' \textit{arXiv
+preprint arXiv:2310.06825}, 2023. Disponible : \url{https://arxiv.org/abs/2310.06825}.
+
+\bibitem{es2023ragas}
+S. Es, J. James, L. Espinosa-Anke et S. Schockaert, ``Ragas: Automated
+Evaluation of Retrieval Augmented Generation,'' \textit{arXiv preprint
+arXiv:2309.15217}, 2023. Disponible : \url{https://arxiv.org/abs/2309.15217}.
+
+\bibitem{ragasdocs}
+Ragas, ``Available Metrics,'' documentation officielle, consultée en août 2026.
+Disponible : \url{https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/}.
+
+\bibitem{pythonDocs}
+Python Software Foundation, ``Python 3 Documentation,'' documentation officielle,
+consultée en août 2026. Disponible : \url{https://docs.python.org/3/}.
+
+\bibitem{sklearnDocs}
+Scikit-learn Developers, ``Scikit-learn User Guide,'' documentation officielle,
+consultée en août 2026. Disponible : \url{https://scikit-learn.org/stable/user_guide.html}.
+
+\bibitem{langchainDocs}
+LangChain, ``LangChain Documentation,'' documentation officielle, consultée en
+ août 2026. Disponible : \url{https://python.langchain.com/docs/}.
+
+\bibitem{bgereranker}
+Beijing Academy of Artificial Intelligence, ``bge-reranker-v2-m3,'' fiche modèle,
+consultée en août 2026. Disponible : \url{https://huggingface.co/BAAI/bge-reranker-v2-m3}.
+
+\bibitem{mistraldocs}
+Mistral AI, ``Python SDK and API documentation,'' documentation officielle,
+consultée en août 2026. Disponible : \url{https://docs.mistral.ai/resources/sdks}.
+
+\bibitem{gradio}
+Gradio, ``Gradio Documentation,'' documentation officielle, consultée en août
+2026. Disponible : \url{https://www.gradio.app/docs}.
+
+\bibitem{kaggle}
+Kaggle, ``Notebooks Documentation,'' documentation officielle, consultée en août
+2026. Disponible : \url{https://www.kaggle.com/docs/notebooks}.
+
+\end{thebibliography}
+
+%=============================================================================
+% ANNEXES
+%=============================================================================
+\appendix
+\chapter{Reproductibilité et artefacts sauvegardés}
+
+Le projet est versionné dans un dépôt GitHub. Le notebook Kaggle français
+sépare le code, les données et les résultats afin d'éviter qu'une mise à jour du
+code efface le corpus ou l'index. Les artefacts de l'évaluation finale comprennent
+notamment \texttt{samples.jsonl}, \texttt{samples.csv}, \texttt{summary.json},
+\texttt{manifest.json}, les graphiques de métriques et une archive
+\texttt{resultats\_rag\_stage.zip}.
+
+\begin{longtable}{p{4.2cm}p{10cm}}
+\toprule
+\textbf{Artefact} & \textbf{Utilité}\\
+\midrule
+\endhead
+\texttt{index\_manifest.json} & Configuration de l'index, profil de récupération et modèle d'embeddings.\\
+\texttt{test\_dataset\_v1.\allowbreak jsonl} & Questions, références, URLs et IDs de chunks du jeu final.\\
+\texttt{samples.jsonl} & Données par question : contextes, réponse, scores, raisons et erreurs.\\
+\texttt{summary.json} & Moyennes, couverture des métriques et résultats par domaine.\\
+\texttt{manifest.json} & Informations de reproductibilité sur le run et le juge.\\
+\texttt{resultats\_rag\_stage.\allowbreak zip} & Archive exportable regroupant les principaux résultats.\\
+\bottomrule
+\end{longtable}
+
+\chapter{Schéma conceptuel d'un enregistrement de test}
+
+Chaque question du jeu final suit une structure JSONL similaire à celle-ci :
+
+\begin{lstlisting}[caption={Structure simplifiée d'un enregistrement du jeu de test.}]
+{
+  "question_id": "test_python_001",
+  "split": "test",
+  "domain": "python",
+  "language": "fr",
+  "user_input": "Quelle est la portee d'une variable ?",
+  "reference": "La portee indique ou une variable est accessible.",
+  "reference_context_ids": ["python_..._chunk_0001"],
+  "reference_source_urls": ["https://docs.python.org/3/..."],
+  "annotation": {"review_status": "validated"}
+}
+\end{lstlisting}
+
+\chapter{Éléments à compléter avant dépôt officiel}
+
+Avant la soumission officielle, il est recommandé de vérifier les éléments
+suivants : les noms et fonctions exacts des encadrants sur la page de garde, la
+date de soutenance, le numéro éventuel du PFA, l'orthographe des membres du jury
+et les règles formelles spécifiques de l'INSEA. Les cinq lignes mal formées du
+jeu de test doivent aussi être corrigées avant de présenter les métriques à 120
+questions comme des valeurs définitivement gelées.
+
+\end{document}

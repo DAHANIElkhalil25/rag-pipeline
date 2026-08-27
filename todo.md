@@ -91,6 +91,31 @@
 - [x] Ajouter des tests couvrant question valide, aucun passage et question hors périmètre.
 - [ ] Publier la correction et fournir seulement le test Kaggle de l’étape 5.
 
+# Reprise Kaggle après disparition du code
+
+- [ ] Récupérer le répertoire de code de manière sûre sans toucher aux artefacts sauvegardés.
+- [ ] Vérifier explicitement la présence de `rag_final_data` et de l’index avant de charger l’étape 5.
+- [ ] Donner un test réduit de la protection hors périmètre et expliquer son résultat.
+
+# Réutilisation des sorties Kaggle sauvegardées
+
+- [ ] Ajouter la sortie de la version Kaggle sauvegardée comme entrée de la nouvelle session.
+- [ ] Copier seulement `rag_final_data` vers le dossier de travail courant, sans reconstituer le corpus ni l’index.
+- [ ] Cloner seulement le code mis à jour et exécuter le test court de l’étape 5.
+
+# Rapport PFA LaTeX
+
+- [x] Reproduire la charte LaTeX académique du rapport PFE fourni, avec une page de garde PFA et deux jurés INSEA.
+- [x] Rédiger les chapitres sur 3D Smart Factory, les fondements RAG, la réalisation, l’évaluation Ragas et les limites.
+- [x] Construire une bibliographie IEEE intégrée et citer les sources académiques et documentaires pertinentes.
+- [x] Compiler et contrôler le document LaTeX, puis remettre le source et le guide de personnalisation.
+
+# Correction de l’orientation Kaggle
+
+- [ ] Vérifier la méthode réellement disponible pour réutiliser ou consulter une sortie de notebook sauvegardée.
+- [ ] Éviter toute nouvelle instruction d’interface non confirmée.
+- [ ] Fournir une reprise unique qui ne recalcule pas les résultats déjà obtenus.
+
 ## Accord explicite
 
 L’étudiant a autorisé le 26 août 2026 l’utilisation de l’interface compatible OpenAI de Mistral, avec client asynchrone, uniquement pour le juge Ragas.

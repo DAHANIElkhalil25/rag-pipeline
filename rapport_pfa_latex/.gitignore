@@ -1,0 +1,9 @@
+# Fichiers intermédiaires générés par pdflatex
+*.aux
+*.lof
+*.log
+*.lot
+*.out
+*.toc
+*.pdf
+compile-*.log
