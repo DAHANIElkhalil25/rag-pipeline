@@ -1,0 +1,48 @@
+{
+  "schema_version": "final_ragas_run_v1",
+  "run_id": "final_120_20260827T154025Z",
+  "started_at": "2026-08-27T15:40:25.829995+00:00",
+  "dataset_path": "/kaggle/working/rag-pipeline-final/evaluation/datasets/test_dataset_v1.jsonl",
+  "judge_provider": "mistral",
+  "judge_model": "mistral-small-latest",
+  "ragas_config": {
+    "ragas_version": "0.4.3",
+    "metrics": [
+      "faithfulness",
+      "answer_relevancy",
+      "context_precision",
+      "context_recall",
+      "factual_correctness"
+    ],
+    "batch_size": 10,
+    "checkpoint_every": 10,
+    "default_split": "dev",
+    "judge_mode": "external_or_adapter"
+  },
+  "generation_model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "retrieval_config": {
+    "embedding_model": "intfloat/multilingual-e5-base",
+    "search_method": "hybrid",
+    "alpha": 0.7,
+    "embedding_query_prefix": "query: ",
+    "candidate_k": 20,
+    "final_k": 5,
+    "reranker": {
+      "enabled": true,
+      "model_name": "BAAI/bge-reranker-v2-m3",
+      "max_length": 512,
+      "unload_after_query": false
+    },
+    "retrieval_profile": "multilingual_hybrid_rerank"
+  },
+  "python_version": "3.12.13 (main, Mar  4 2026, 09:23:07) [GCC 11.4.0]",
+  "platform": "Linux-6.12.90+-x86_64-with-glibc2.35",
+  "packages": {
+    "ragas": "0.4.3",
+    "torch": "2.10.0+cu128",
+    "transformers": "5.0.0",
+    "sentence-transformers": "5.4.1",
+    "faiss-cpu": "1.15.0"
+  },
+  "ragas_embedding_adapter": "sentence_transformer_base_ragas_adapter_v2"
+}

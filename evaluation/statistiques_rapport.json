@@ -1,0 +1,312 @@
+{
+  "date_utc": "2026-08-27T17:22:10.662762+00:00",
+  "commit": "a479c346e44ff203c4431e4c71958a4c4ad615a8",
+  "mode": "EVALUATION_FINALE",
+  "gpu": "Tesla T4",
+  "profil_recherche": "multilingual_hybrid_rerank",
+  "fichiers_bruts": 6247,
+  "fichiers_nettoyes": 877,
+  "nombre_chunks": 9791,
+  "chunks_par_source": {
+    "python": 5649,
+    "sklearn": 1112,
+    "langchain": 3030
+  },
+  "documents_approx_par_source": {
+    "python": 5649,
+    "sklearn": 1112,
+    "langchain": 3030
+  },
+  "index": {
+    "schema_version": "final_index_v1",
+    "total_chunks": 9791,
+    "total_documents": 869,
+    "embedding_dimension": 768,
+    "index_config": {
+      "chunk_size_tokens": 400,
+      "chunk_overlap_tokens": 30,
+      "min_chunk_tokens": 30,
+      "embedding_model": "intfloat/multilingual-e5-base",
+      "faiss_index_type": "FlatIP",
+      "embedding_batch_size": 64,
+      "embedding_query_prefix": "query: ",
+      "embedding_passage_prefix": "passage: ",
+      "retrieval_profile": "multilingual_hybrid_rerank",
+      "candidate_k": 20,
+      "final_k": 5,
+      "reranker": {
+        "enabled": true,
+        "model_name": "BAAI/bge-reranker-v2-m3",
+        "max_length": 512,
+        "unload_after_query": false
+      },
+      "search_method": "hybrid",
+      "alpha": 0.7
+    },
+    "source_versions": {
+      "langchain": "latest",
+      "python": "3.13",
+      "sklearn": "1.5"
+    },
+    "chunks_metadata_sha256": "1e3007ba357ddec8d45f033ff45d38ef853cdc3044561ad9d3da3bc6ff41bd33",
+    "required_chunk_fields": [
+      "chunk_id",
+      "document_id",
+      "doc_source",
+      "source_version",
+      "doc_url",
+      "doc_section",
+      "chunk_index",
+      "content_sha256",
+      "chunk_content_sha256"
+    ],
+    "output_files": {
+      "faiss_index": "/kaggle/working/rag_final_data/processed/vectorstore/faiss_index.bin",
+      "chunks_metadata": "/kaggle/working/rag_final_data/processed/vectorstore/chunks_metadata.json"
+    }
+  },
+  "jeu_brouillon_120": "/kaggle/working/rag-pipeline-final/evaluation/datasets/test_dataset_v1_source_grounded_draft.jsonl",
+  "evaluation_ragas": {
+    "metric_summary": {
+      "faithfulness": {
+        "mean": 0.8879484260949778,
+        "median": 1.0,
+        "std": 0.20473807204435923,
+        "n_valid": 116,
+        "n_total": 120,
+        "coverage": 0.9666666666666667
+      },
+      "answer_relevancy": {
+        "mean": 0.9133108373675538,
+        "median": 0.9168343451656895,
+        "std": 0.09382221736140767,
+        "n_valid": 120,
+        "n_total": 120,
+        "coverage": 1.0
+      },
+      "context_precision": {
+        "mean": 0.819222689046643,
+        "median": 0.9999999999,
+        "std": 0.2757092818534946,
+        "n_valid": 119,
+        "n_total": 120,
+        "coverage": 0.9916666666666667
+      },
+      "context_recall": {
+        "mean": 0.8791666666666667,
+        "median": 1.0,
+        "std": 0.31752610779533175,
+        "n_valid": 120,
+        "n_total": 120,
+        "coverage": 1.0
+      },
+      "factual_correctness": {
+        "mean": 0.6925423728813559,
+        "median": 0.75,
+        "std": 0.24805977512556715,
+        "n_valid": 118,
+        "n_total": 120,
+        "coverage": 0.9833333333333333
+      },
+      "id_context_precision": {
+        "mean": 0.24000000000000005,
+        "median": 0.2,
+        "std": 0.15898839870999942,
+        "n_valid": 120,
+        "n_total": 120,
+        "coverage": 1.0
+      },
+      "id_context_recall": {
+        "mean": 0.7194444444444446,
+        "median": 1.0,
+        "std": 0.40881015054003084,
+        "n_valid": 120,
+        "n_total": 120,
+        "coverage": 1.0
+      }
+    },
+    "by_domain": {
+      "langchain": {
+        "faithfulness": {
+          "mean": 0.8820593149540518,
+          "median": 1.0,
+          "std": 0.20470074972226673,
+          "n_valid": 38,
+          "n_total": 40,
+          "coverage": 0.95
+        },
+        "answer_relevancy": {
+          "mean": 0.9065650173141186,
+          "median": 0.9304536414685012,
+          "std": 0.15196310501350802,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "context_precision": {
+          "mean": 0.7259722221898756,
+          "median": 0.8041666666465626,
+          "std": 0.285095075850737,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "context_recall": {
+          "mean": 0.8375,
+          "median": 1.0,
+          "std": 0.3649288655657112,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "factual_correctness": {
+          "mean": 0.6112820512820513,
+          "median": 0.67,
+          "std": 0.2689862008511089,
+          "n_valid": 39,
+          "n_total": 40,
+          "coverage": 0.975
+        },
+        "id_context_precision": {
+          "mean": 0.195,
+          "median": 0.2,
+          "std": 0.17238894604338387,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "id_context_recall": {
+          "mean": 0.5958333333333333,
+          "median": 1.0,
+          "std": 0.4666781134127264,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        }
+      },
+      "python": {
+        "faithfulness": {
+          "mean": 0.8904960317460316,
+          "median": 1.0,
+          "std": 0.20740669262468928,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "answer_relevancy": {
+          "mean": 0.9097509369024432,
+          "median": 0.9132849703555399,
+          "std": 0.03819922326186465,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "context_precision": {
+          "mean": 0.8688541666390114,
+          "median": 0.9999999999666667,
+          "std": 0.26605831298241134,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "context_recall": {
+          "mean": 0.875,
+          "median": 1.0,
+          "std": 0.3349320635285418,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "factual_correctness": {
+          "mean": 0.7582051282051282,
+          "median": 0.8,
+          "std": 0.22672580001857326,
+          "n_valid": 39,
+          "n_total": 40,
+          "coverage": 0.975
+        },
+        "id_context_precision": {
+          "mean": 0.22999999999999998,
+          "median": 0.2,
+          "std": 0.14710889042143457,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "id_context_recall": {
+          "mean": 0.7208333333333334,
+          "median": 1.0,
+          "std": 0.4106618589462167,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        }
+      },
+      "scikit_learn": {
+        "faithfulness": {
+          "mean": 0.8911558470768997,
+          "median": 1.0,
+          "std": 0.2073313022919776,
+          "n_valid": 38,
+          "n_total": 40,
+          "coverage": 0.95
+        },
+        "answer_relevancy": {
+          "mean": 0.9236165578860994,
+          "median": 0.9227408208996498,
+          "std": 0.04624579316218783,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "context_precision": {
+          "mean": 0.8639601139332064,
+          "median": 0.99999999995,
+          "std": 0.2572550179057438,
+          "n_valid": 39,
+          "n_total": 40,
+          "coverage": 0.975
+        },
+        "context_recall": {
+          "mean": 0.925,
+          "median": 1.0,
+          "std": 0.24152294576982397,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "factual_correctness": {
+          "mean": 0.70775,
+          "median": 0.76,
+          "std": 0.2299218094516883,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "id_context_precision": {
+          "mean": 0.29500000000000004,
+          "median": 0.30000000000000004,
+          "std": 0.14313343245789745,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        },
+        "id_context_recall": {
+          "mean": 0.8416666666666666,
+          "median": 1.0,
+          "std": 0.30417325247524235,
+          "n_valid": 40,
+          "n_total": 40,
+          "coverage": 1.0
+        }
+      }
+    },
+    "sample_status": {
+      "valid": 114,
+      "partial": 6,
+      "failed": 0
+    },
+    "run_id": "final_120_20260827T154025Z",
+    "finished_at": "2026-08-27T17:20:53.282345+00:00"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-08-27T15:16:47.193715",
+  "elapsed_seconds": 5182.7,
+  "n_eval_questions": 49,
+  "methodology": "full_grid_search",
+  "n_configurations_tested": 108,
+  "literature_references": {
+    "RAG": "Lewis et al. (2020) - Retrieval-Augmented Generation",
+    "SBERT": "Reimers & Gurevych (2019) - Sentence-BERT",
+    "FAISS": "Johnson et al. (2019) - Billion-scale similarity search",
+    "BM25": "Robertson & Zaragoza (2009) - BM25 and Beyond",
+    "RAG_survey": "Gao et al. (2024) - Retrieval-Augmented Generation: A Survey",
+    "RAG_failures": "Barnett et al. (2024) - Seven Failure Points in RAG",
+    "RAGAS": "Es et al. (2024) - RAGAS: Automated Evaluation of RAG"
+  },
+  "recommendations": {
+    "chunking": {
+      "chunk_size": 400,
+      "overlap": 30,
+      "mrr": 0.9276,
+      "justification": "Configuration optimale identifiée par grid search exhaustif sur 108 configurations. Réf. Gao et al. (2024)."
+    },
+    "embedding_model": {
+      "model": "all-MiniLM-L6-v2",
+      "mrr": 0.9276,
+      "justification": "Meilleur MRR@5 en combinaison avec chunk_size=400 et Hybride α=0.7."
+    },
+    "search_method": {
+      "method": "Hybride α=0.7",
+      "mrr": 0.9276,
+      "justification": "Meilleur MRR@5 en combinaison optimale globale. Réf. Gao et al. (2024)."
+    }
+  }
+}

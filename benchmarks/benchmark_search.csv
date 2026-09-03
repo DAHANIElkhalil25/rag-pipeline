@@ -1,0 +1,5 @@
+method,description,hit_rate@5,mrr@5,precision@5,reference
+Sémantique pure (FAISS),Similarité cosinus sur embeddings denses,0.898,0.7565,0.6286,Reimers & Gurevych (2019)
+BM25 pure (lexicale),Correspondance de termes pondérée par TF-IDF,0.9796,0.8793,0.7918,Robertson & Zaragoza (2009)
+Hybride (70% sém. + 30% BM25),Fusion pondérée des scores normalisés,0.9796,0.9276,0.8204,Gao et al. (2024)
+Hybride (50% sém. + 50% BM25),Fusion pondérée équilibrée,0.9592,0.8844,0.8122,Gao et al. (2024)

@@ -1,33 +1,89 @@
 # 🤖 Pipeline RAG — Documentation Technique
 
-## Projet
-Système de Question-Réponse basé sur RAG (Retrieval-Augmented Generation) appliqué à la documentation technique Python, Scikit-learn et LangChain.
+Système de Question-Réponse basé sur **Retrieval-Augmented Generation (RAG)** appliqué à la documentation technique de Python 3.13, Scikit-learn 1.5 et LangChain.
 
-## Structure des fichiers
+**Projet de Fin d'Année — INSEA, Filière Data Science 2025–2026**
+Organisme d'accueil : 3D Smart Factory
+
+---
+
+## Architecture du pipeline (6 étapes)
 
 ```
-rag_project_src/
+Documentation officielle
+        │
+   [Étape 1] Collecte        — Clone Git des dépôts officiels (Python, Sklearn, LangChain)
+        │
+   [Étape 2] Nettoyage       — Parsing RST/MDX, normalisation, dédoublonnage
+        │
+   [Étape 3] Benchmarking    — Grid search 108 configurations (chunk × embedding × search)
+        │
+   [Étape 4] Indexation      — Chunking + FAISS avec la config optimale
+        │
+   [Étape 5] Génération      — Mistral-7B-Instruct-v0.3 (4-bit, GPU T4)
+        │
+   [Étape 6] Évaluation      — Ragas 0.4.3 (120 questions, juge Mistral)
+```
+
+---
+
+## Structure du dépôt
+
+```
+rag-pipeline/
 │
-├── main.py                 ← Point d'entrée (exécuter celui-ci)
-├── config.py               ← Configuration : chemins, constantes, paramètres
-├── utils.py                ← Fonctions utilitaires partagées
-├── etape1_collecte.py      ← Étape 1 : collecte des données (clone GitHub)
-├── etape2_nettoyage.py     ← Étape 2 : nettoyage et préparation
-├── etape3_benchmarking.py  ← Étape 3 : benchmarking des paramètres
-├── etape4_indexation.py    ← Étape 4 : chunking et indexation FAISS
-├── requirements.txt        ← Dépendances avec versions
-├── core/                   ← Modules partagés (refactorisés)
+├── core/                          ← Modules partagés (refactorisés)
 │   ├── __init__.py
-│   ├── tokenizer.py        ← Compteur de tokens (tiktoken)
-│   ├── chunker.py          ← Chunker unifié (section → paragraphe → taille)
-│   ├── loaders.py          ← Chargement des documents + vérif. dépendances
-│   └── search.py           ← BM25 simplifié
-├── tests/                  ← Tests unitaires
-│   ├── test_utils.py
+│   ├── tokenizer.py               ← Compteur de tokens (tiktoken)
+│   ├── chunker.py                 ← Chunker unifié (section → paragraphe → taille)
+│   ├── loaders.py                 ← Chargement des documents
+│   └── search.py                  ← BM25 simplifié
+│
+├── tests/                         ← Tests unitaires (52 tests, 100% pass)
+│   ├── test_chunker.py
 │   ├── test_cleaners.py
-│   └── test_chunker.py
-└── README.md               ← Ce fichier
+│   └── test_utils.py
+│
+├── evaluation/                    ← Artefacts d'évaluation
+│   ├── datasets/
+│   │   └── eval_questions.json    ← 49 questions de benchmarking
+│   ├── runs/
+│   │   └── final_120_20260827T154025Z/
+│   │       ├── manifest.json      ← Config exacte du run (modèle, retrieval, ragas)
+│   │       ├── summary.json       ← Scores RAGAS par domaine
+│   │       └── samples.csv        ← Résultats par question
+│   ├── manifeste_execution.json   ← Manifeste global du pipeline
+│   ├── statistiques_rapport.json  ← Stats agrégées
+│   ├── scores_ragas_finaux.png    ← Graphique radar des métriques
+│   └── chunks_par_source.png      ← Distribution des chunks
+│
+├── benchmarks/                    ← Résultats du grid search (étape 3)
+│   ├── benchmark_full_grid.csv    ← 108 configurations × 3 métriques
+│   ├── benchmark_report.json      ← Config optimale recommandée
+│   ├── benchmark_chunking.csv
+│   ├── benchmark_embeddings.csv
+│   ├── benchmark_search.csv
+│   └── chunking_report.json       ← Rapport de découpage du corpus
+│
+├── notebooks/
+│   └── notebook_kaggle_rag.ipynb  ← Notebook Kaggle (template, GPU T4)
+│
+├── rapport_pfa_latex/
+│   └── rapport_stage.tex          ← Source LaTeX du rapport PFA
+│
+├── etape1_collecte.py             ← Étape 1 : collecte des données
+├── etape2_nettoyage.py            ← Étape 2 : nettoyage et préparation
+├── etape3_benchmarking.py         ← Étape 3 : grid search 108 configs
+├── etape4_indexation.py           ← Étape 4 : chunking et indexation FAISS
+├── etape5_generation.py           ← Étape 5 : génération Mistral 7B
+├── etape6_evaluation.py           ← Étape 6 : évaluation Ragas
+├── main.py                        ← Point d'entrée CLI
+├── config.py                      ← Configuration centralisée
+├── utils.py                       ← Fonctions utilitaires partagées
+└── requirements.txt               ← Dépendances avec versions
 ```
+
+---
 
 ## Installation
 
@@ -37,197 +93,75 @@ pip install -r requirements.txt
 
 ## Exécution
 
-### Depuis VS Code (terminal intégré)
-
 ```bash
-# Exécuter tout le pipeline (étapes 1 + 2 + 3 + 4)
+# Pipeline complet (étapes 1 à 6)
 python main.py
 
-# Exécuter une seule étape
-python main.py --etape 1    # Collecte uniquement
-python main.py --etape 2    # Nettoyage uniquement (nécessite étape 1)
-python main.py --etape 3    # Benchmarking (nécessite étape 2)
-python main.py --etape 4    # Indexation (nécessite étape 2, utilise étape 3 si dispo)
-```
-
-### Depuis Jupyter Notebook
-
-Créez un notebook dans le même dossier et exécutez :
-
-```python
-# Cellule 1 — Étape 1
-%run etape1_collecte.py
-
-# Cellule 2 — Étape 2
-%run etape2_nettoyage.py
-
-# Cellule 3 — Étape 3 (optionnel, benchmarking)
-%run etape3_benchmarking.py
-
-# Cellule 4 — Étape 4 (indexation)
-%run etape4_indexation.py
-```
-
-Ou importez les fonctions pour un contrôle plus fin :
-
-```python
-# Cellule 1
-from etape1_collecte import *
-init_directories()
-
-# Cellule 2 — Python uniquement
-python_dir = clone_cpython_docs()
-python_meta = collect_python_docs(python_dir)
-
-# Cellule 3 — Scikit-learn
-sklearn_dir = clone_sklearn_docs()
-sklearn_meta = collect_sklearn_docs(sklearn_dir)
-
-# etc.
+# Étapes individuelles
+python main.py --etape 1    # Collecte
+python main.py --etape 2    # Nettoyage
+python main.py --etape 3    # Benchmarking (2-4h)
+python main.py --etape 4    # Indexation FAISS
+python main.py --etape 5    # Génération (nécessite GPU ou Ollama)
+python main.py --etape 6    # Évaluation Ragas
 ```
 
 ## Tests
 
 ```bash
-# Exécuter tous les tests
 python -m pytest tests/ -v
-
-# Exécuter un fichier de tests spécifique
-python -m pytest tests/test_utils.py -v
 ```
 
-## Sortie
+---
 
-Après exécution, l'arborescence suivante est créée :
+## Résultats expérimentaux
 
-```
-rag_project/
-└── data/
-    ├── raw/                          ← Données brutes (étape 1)
-    │   ├── python_docs/
-    │   │   ├── cpython_clone/Doc/    ← Clone Git
-    │   │   └── json_docs/            ← Documents JSON standardisés
-    │   ├── sklearn_docs/
-    │   │   ├── sklearn_clone/doc/
-    │   │   └── json_docs/
-    │   └── langchain_docs/
-    │       ├── langchain_docs_clone/ ← Clone Git
-    │       └── json_docs/
-    ├── processed/                    ← Données nettoyées (étape 2)
-    │   ├── cleaned/
-    │   │   ├── python/
-    │   │   ├── sklearn/
-    │   │   ├── langchain/
-    │   │   └── corpus_cleaned_index.csv
-    │   └── vectorstore/              ← Index FAISS (étape 4)
-    │       ├── faiss_index.bin
-    │       └── chunks_metadata.json
-    ├── benchmarks/                   ← Résultats benchmarking (étape 3)
-    │   ├── benchmark_chunking.csv
-    │   ├── benchmark_embeddings.csv
-    │   ├── benchmark_search.csv
-    │   ├── benchmark_report.json
-    │   └── eval_questions.json
-    └── metadata/
-        ├── corpus_index.csv
-        └── chunking_report.json
-```
+### Benchmarking (étape 3) — Grid search 108 configurations
 
-## Notes
+Exécuté sur Kaggle GPU T4, durée **~1h26**. Configuration optimale identifiée :
+
+| Paramètre | Valeur optimale | MRR@5 |
+|-----------|----------------|-------|
+| Taille de chunk | 400 tokens | — |
+| Chevauchement | 30 tokens | — |
+| Méthode de recherche | Hybride α=0.7 | **0.9276** |
+
+> Résultats complets dans [`benchmarks/benchmark_full_grid.csv`](benchmarks/benchmark_full_grid.csv)
+
+### Évaluation finale (étape 6) — 120 questions, Ragas 0.4.3
+
+Système final : `multilingual-e5-base` + BM25 hybride + reranking `bge-reranker-v2-m3` + `Mistral-7B-Instruct-v0.3`
+
+| Métrique | Global | Python | Scikit-learn | LangChain |
+|----------|--------|--------|--------------|-----------|
+| **Faithfulness** | 0.888 | 0.890 | 0.891 | 0.882 |
+| **Answer Relevancy** | 0.913 | 0.910 | 0.924 | 0.907 |
+| **Context Precision** | 0.819 | 0.869 | 0.864 | 0.726 |
+| **Context Recall** | 0.879 | 0.875 | 0.925 | 0.838 |
+| **Factual Correctness** | 0.693 | 0.758 | 0.708 | 0.611 |
+
+> Détails par question dans [`evaluation/runs/final_120_20260827T154025Z/samples.csv`](evaluation/runs/final_120_20260827T154025Z/samples.csv)
+
+---
+
+## Notes techniques
 
 - Le premier lancement télécharge ~200 Mo de dépôts Git (Python + Sklearn + LangChain)
 - Les lancements suivants réutilisent les clones existants (idempotence)
-- L'étape 1 prend ~5-10 min, l'étape 2 ~2-5 min
-- L'étape 3 (benchmarking) prend ~10-30 min selon le hardware
-- L'étape 4 utilise automatiquement les paramètres optimaux de l'étape 3 si disponibles
-- Testé avec Python 3.10+
+- L'étape 3 prend **2–4h** selon le hardware (108 configurations × embeddings)
+- L'étape 5 nécessite un GPU ou Ollama local (`http://localhost:11434`)
+- Les clés API Ragas sont lues depuis les **secrets Kaggle** (jamais dans le code)
+- Testé avec Python 3.10+ (Kaggle : Python 3.12)
 
-## Baseline pré-améliorations
+## Sortie de l'étape 4 (données volumineuses, non versionnées)
 
-La baseline est conservée de manière immuable afin de permettre la comparaison académique avant/après. Les résultats observés dans Kaggle sont enregistrés dans `evaluation/baseline/baseline_metrics_v1.json`, le notebook initial est archivé dans `notebooks/baseline_kaggle_rag_v1.ipynb` et l'ancien évaluateur local est conservé dans `legacy/etape6_baseline_custom.py`.
-
-La baseline utilise 20 questions et un évaluateur local inspiré de Ragas. Elle ne doit pas être écrasée par les expériences du système final.
-
-## Notebook Kaggle baseline
-
-Le notebook `notebooks/baseline_kaggle_rag_v1.ipynb` archive le protocole initial. Il clone une version déterminée du dépôt, sépare le code des données produites, réutilise les artefacts existants et charge une seule instance du pipeline avant la démonstration, l'évaluation et l'interface.
-
-Dans Kaggle, activez Internet et un GPU T4, puis exécutez les cellules dans l'ordre. Les données sont écrites dans `/kaggle/working/rag_data` et les principaux résultats sont exportés sous forme de fichiers JSON, CSV et PNG. L'archive `/kaggle/working/rag_results_bundle.zip` peut être téléchargée depuis l'onglet Files.
-
-Les fichiers d'évaluation comprennent `ragas_report.json`, `ragas_details.csv`, `evaluation_summary.csv`, `evaluation_details_normalized.csv`, `evaluation_by_source.png`, `evaluation_coverage.png` et `run_manifest.json`. Les valeurs invalides restent absentes et sont accompagnées d'un statut et d'un compteur d'erreurs ; elles ne sont pas remplacées arbitrairement par `0.5`.
-
-## Système final et notebook Kaggle séparé
-
-Utilisez `notebooks/notebook_final_rag_fr.ipynb` pour le système final. Ce notebook en français exécute les étapes du projet, produit un manifeste d'index, sauvegarde les fenêtres de contexte exactes fournies au générateur et lance l'évaluation officielle Ragas v0.4.3 sans modifier la baseline.
-
-Dans Kaggle, activez Internet et un GPU T4. Pour lancer Ragas, créez un Kaggle Secret nommé `OPENAI_API_KEY` ou `MISTRAL_API_KEY`, sélectionnez le provider et le modèle juge dans la cellule de configuration, puis activez `RUN_OFFICIAL_RAGAS`. La clé ne doit jamais être écrite dans le notebook ni dans le dépôt.
-
-Le notebook distingue strictement les jeux suivants :
-
-| Fichier | Rôle |
-|---|---|
-| `evaluation/datasets/dev_dataset_v1.jsonl` | Les 20 questions historiques, utilisées seulement pendant le développement. |
-| `evaluation/datasets/test_dataset_v1_annotation_template.csv` | Le plan équilibré de 120 questions finales à annoter manuellement. |
-| `evaluation/datasets/test_dataset_v1_source_grounded_draft.jsonl` | Les 120 questions avec références concises et URLs officielles ; elles restent à revoir humainement. |
-| `evaluation/datasets/test_dataset_v1_candidate_aligned_review.jsonl` | Jeu de revue de 120 questions créé à partir des candidats Kaggle déjà reçus ; chaque ligne possède des IDs de preuves mais reste en attente d'une validation humaine explicite. |
-| `evaluation/datasets/test_dataset_v1.jsonl` | Le test final validé et gelé par le protocole de validation experte IA documenté ; ses limites doivent être déclarées dans le rapport. |
-
-Après avoir complété le CSV de 120 questions, convertissez-le avec :
-
-```bash
-python evaluation/convert_annotations.py \
-  --input evaluation/datasets/test_dataset_v1_annotation_template.csv \
-  --output evaluation/datasets/test_dataset_v1.jsonl
 ```
-
-La conversion refuse un test final incomplet, non relu ou dépourvu d'identifiants de chunks de référence. Les règles détaillées se trouvent dans `evaluation/annotation_guidelines.md`.
-
-Le jeu final déjà préparé pour ce projet est `evaluation/datasets/test_dataset_v1.jsonl`. Il a été gelé sans nouvelle exécution Kaggle à partir des candidats reçus et du protocole `evaluation/VALIDATION_EXPERTE_IA_FR.md`. Pour obtenir les métriques finales, utilisez directement le mode `EVALUATION_FINALE` du notebook français ; ne relancez pas la préparation.
-
-Pour accélérer l'annotation des identifiants de chunks, le notebook final peut générer `test_dataset_v1_candidates.jsonl` avec dix passages candidats par question. Il s'agit d'une aide à la revue : les IDs ne doivent jamais être acceptés automatiquement. La couverture des sources et les décisions de conception du banc de questions sont consignées dans `evaluation/question_bank_sources.md`.
-
-Lorsque des candidats ont déjà été générés dans Kaggle, `evaluation/build_candidate_aligned_review_dataset.py` permet de préparer une revue de 120 lignes sans exécuter de nouveau le notebook. Le script conserve les questions soutenues par une preuve directe et reformule seulement les questions sans preuve à partir d'extraits réellement disponibles. Le résultat et la procédure sont décrits dans `evaluation/CANDIDATE_ALIGNED_REVIEW_FR.md`. Il ne remplace pas la validation humaine ni `test_dataset_v1.jsonl`.
-
-## Amélioration de la récupération
-
-Trois profils contrôlés sont disponibles avant l'indexation via `RAG_RETRIEVAL_PROFILE` : `baseline`, `multilingual_hybrid` et `multilingual_hybrid_rerank`. Le profil final par défaut utilise `intfloat/multilingual-e5-base` avec les préfixes requis `query: ` et `passage: `, récupère 20 candidats avec recherche hybride, puis applique `BAAI/bge-reranker-v2-m3` pour conserver les cinq meilleurs passages. L'index est reconstruit dès que le profil change afin de ne jamais interroger un index FAISS avec des embeddings incompatibles.
-
-Dans le notebook Kaggle, activez `RUN_RETRIEVAL_PROFILE_COMPARISON=True` uniquement pour comparer ces profils sur les 20 questions de développement. Conservez ensuite une seule configuration avant de préparer le test final. Les sources officielles justifiant ce choix sont documentées dans `evaluation/retrieval_improvement_evidence.md`.
-
-## Évaluation Ragas officielle du système final
-
-Le module `evaluation/ragas_runner.py` est l'entrée principale du système final. Il charge le jeu JSONL, enregistre les réponses, les chunks récupérés, les identifiants de chunks, les textes exacts fournis au prompt, les erreurs et les métriques par question. Il sauvegarde ensuite `samples.jsonl`, `samples.csv`, `summary.json` et `manifest.json` dans `data/evaluation/runs/<run_id>/`.
-
-Les métriques officielles utilisées sont `Faithfulness`, `AnswerRelevancy`, `ContextPrecision`, `ContextRecall` et `FactualCorrectness`. Lorsque les `reference_context_ids` ont été annotés, le runner ajoute aussi des métriques déterministes de précision et rappel par identifiants. Les références de compatibilité Ragas sont documentées dans `evaluation/official_ragas_sources.md`.
-
-Exemple CLI :
-
-```bash
-export OPENAI_API_KEY="..."
-python main.py --final-eval \
-  --dataset evaluation/datasets/dev_dataset_v1.jsonl \
-  --run-id dev_ragas_v1 \
-  --judge-provider openai \
-  --judge-model gpt-4o-mini \
-  --api-key-env OPENAI_API_KEY
+rag_project/data/
+├── raw/                       ← Documents bruts clonés (~200 Mo)
+├── processed/
+│   ├── cleaned/               ← Documents nettoyés (~1 050 fichiers JSON)
+│   └── vectorstore/
+│       ├── faiss_index.bin    ← Index FAISS binaire
+│       └── chunks_metadata.json
+└── evaluation/                ← Résultats locaux Ragas (non versionnés)
 ```
-
-Le générateur local Mistral et le modèle juge Ragas sont volontairement séparés. La baseline locale reste disponible uniquement pour la comparaison historique ; les résultats Ragas du système final sont les métriques principales à utiliser dans la comparaison finale.
-
-## Interface utilisateur
-
-Le module `ui.py` fournit une interface Gradio destinée à Kaggle. Il faut appeler `launch_ui(pipeline, share=True)` après avoir chargé le pipeline. L'interface réutilise la même instance de modèle et affiche la réponse ainsi que les sources récupérées et leurs scores. Elle n'est pas lancée automatiquement par le programme CLI afin de conserver un mode headless compatible avec les notebooks et les environnements CI.
-
-## Gestion des questions hors périmètre
-
-Le module `core/scope_guard.py` protège l'étape 5 et l'interface avant la génération. Si l'utilisateur nomme explicitement une bibliothèque absente du corpus — par exemple `pd.head()` ou `pandas.DataFrame` — le pipeline retourne un statut `hors_perimetre` sans lancer la recherche vectorielle, le reranker ou le modèle Mistral. L'interface affiche alors un message de refus clair et aucune source trompeuse.
-
-La protection refuse aussi une question lorsqu'aucun passage n'a été récupéré. Le seuil numérique `minimum_top_score` reste volontairement désactivé (`None`) : les scores E5 et BGE ne sont pas des probabilités et l'évaluation finale montre une forte dispersion même sur des questions connues du corpus. Un seuil ne sera activé qu'après une calibration distincte sur des questions dans et hors périmètre.
-
-Pour tester uniquement cette fonction dans le notebook français, exécutez la **cellule 4 — Étape 5** après avoir mis à jour le code. Elle affiche deux questions couvertes et la question `fait quoi pd.head ?`, qui doit être refusée sans charger le générateur pour cette troisième question.
-
-## Interprétation des métriques baseline
-
-L'évaluation de l'étape 6 est une implémentation locale et transparente de métriques inspirées de Ragas. Le rapport distingue la fidélité, la pertinence de la réponse, la précision du contexte et le rappel du contexte. Si une compatibilité stricte avec le paquet officiel Ragas est requise, il faudra ajouter un adaptateur pour le client LLM et le modèle d'embedding avant d'utiliser les métriques officielles.
-
-La précision du contexte est calculée de manière sensible au rang sur les cinq premiers passages, tandis que le rappel du contexte utilise les affirmations de la réponse de référence. Les résultats doivent être interprétés conjointement avec la couverture des scores valides, les erreurs de jugement et les métriques IR du benchmarking.

@@ -1,0 +1,4 @@
+model,description,embedding_dim,hit_rate@5,mrr@5,precision@5,embed_time_s,search_time_s,model_size_mb
+all-MiniLM-L6-v2,"Léger, rapide, anglais (SBERT standard)",384,0.898,0.7565,0.6286,25.49,0.971,~80
+paraphrase-multilingual-MiniLM-L12-v2,"Multilingue (50+ langues), 384 dim",384,0.8571,0.7082,0.5306,23.92,1.1671,~80
+all-mpnet-base-v2,"Plus précis (MTEB top), 768 dim, plus lent",768,0.8776,0.7218,0.6122,230.54,1.3452,~420

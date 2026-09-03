@@ -1,0 +1,587 @@
+[
+  {
+    "question": "How to list all files in a directory in Python?",
+    "expected_keywords": [
+      "listdir",
+      "os",
+      "scandir",
+      "iterdir",
+      "pathlib"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "How to read a JSON file in Python?",
+    "expected_keywords": [
+      "json",
+      "load",
+      "open",
+      "read"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "What is a Python decorator and how to use it?",
+    "expected_keywords": [
+      "decorator",
+      "wrapper",
+      "function",
+      "@"
+    ],
+    "source_filter": "python",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to handle exceptions in Python?",
+    "expected_keywords": [
+      "try",
+      "except",
+      "raise",
+      "exception",
+      "error"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "How to use regular expressions in Python?",
+    "expected_keywords": [
+      "re",
+      "match",
+      "search",
+      "pattern",
+      "compile"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "What is the difference between a list and a tuple?",
+    "expected_keywords": [
+      "list",
+      "tuple",
+      "mutable",
+      "immutable",
+      "sequence"
+    ],
+    "source_filter": "python",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to use the subprocess module?",
+    "expected_keywords": [
+      "subprocess",
+      "run",
+      "Popen",
+      "call",
+      "pipe"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "How to write data to a CSV file in Python?",
+    "expected_keywords": [
+      "csv",
+      "writer",
+      "writerow",
+      "DictWriter",
+      "open"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "How does Python garbage collection work?",
+    "expected_keywords": [
+      "gc",
+      "reference",
+      "count",
+      "collect",
+      "cycle"
+    ],
+    "source_filter": "python",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to create and use a virtual environment?",
+    "expected_keywords": [
+      "venv",
+      "virtualenv",
+      "activate",
+      "pip",
+      "install"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "How to use the logging module in Python?",
+    "expected_keywords": [
+      "logging",
+      "logger",
+      "handler",
+      "level",
+      "debug"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "What are context managers and the with statement?",
+    "expected_keywords": [
+      "with",
+      "context",
+      "enter",
+      "exit",
+      "manager"
+    ],
+    "source_filter": "python",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to use asyncio for asynchronous programming?",
+    "expected_keywords": [
+      "asyncio",
+      "async",
+      "await",
+      "coroutine",
+      "event_loop"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "How to manipulate file paths with pathlib?",
+    "expected_keywords": [
+      "pathlib",
+      "Path",
+      "exists",
+      "resolve",
+      "parent"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "What is the Global Interpreter Lock (GIL)?",
+    "expected_keywords": [
+      "GIL",
+      "thread",
+      "lock",
+      "interpreter",
+      "concurrent"
+    ],
+    "source_filter": "python",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to use dataclasses in Python?",
+    "expected_keywords": [
+      "dataclass",
+      "field",
+      "init",
+      "repr",
+      "frozen"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "How to sort a list with a custom key function?",
+    "expected_keywords": [
+      "sort",
+      "sorted",
+      "key",
+      "lambda",
+      "reverse"
+    ],
+    "source_filter": "python",
+    "type": "factual"
+  },
+  {
+    "question": "How to train a random forest classifier?",
+    "expected_keywords": [
+      "RandomForest",
+      "fit",
+      "predict",
+      "n_estimators",
+      "classifier"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "What is cross-validation and how to use it in scikit-learn?",
+    "expected_keywords": [
+      "cross_val",
+      "fold",
+      "validation",
+      "score",
+      "cv"
+    ],
+    "source_filter": "sklearn",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to scale features before training a model?",
+    "expected_keywords": [
+      "scaler",
+      "StandardScaler",
+      "normalize",
+      "fit_transform",
+      "preprocessing"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "How to evaluate a classification model?",
+    "expected_keywords": [
+      "accuracy",
+      "precision",
+      "recall",
+      "f1",
+      "confusion_matrix"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "What is a pipeline in scikit-learn?",
+    "expected_keywords": [
+      "Pipeline",
+      "steps",
+      "transform",
+      "estimator"
+    ],
+    "source_filter": "sklearn",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to perform dimensionality reduction with PCA?",
+    "expected_keywords": [
+      "PCA",
+      "components",
+      "variance",
+      "decomposition",
+      "n_components"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "How to use GridSearchCV for hyperparameter tuning?",
+    "expected_keywords": [
+      "GridSearchCV",
+      "param_grid",
+      "best_params",
+      "cv",
+      "scoring"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "How to handle missing values in scikit-learn?",
+    "expected_keywords": [
+      "imputer",
+      "SimpleImputer",
+      "missing",
+      "NaN",
+      "strategy"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "What is the difference between bagging and boosting?",
+    "expected_keywords": [
+      "bagging",
+      "boosting",
+      "ensemble",
+      "GradientBoosting",
+      "AdaBoost"
+    ],
+    "source_filter": "sklearn",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to perform text classification with scikit-learn?",
+    "expected_keywords": [
+      "TfidfVectorizer",
+      "CountVectorizer",
+      "text",
+      "classification",
+      "pipeline"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "How to use K-Means for clustering?",
+    "expected_keywords": [
+      "KMeans",
+      "cluster",
+      "centroid",
+      "n_clusters",
+      "fit_predict"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "How to train a Support Vector Machine (SVM)?",
+    "expected_keywords": [
+      "SVC",
+      "SVM",
+      "kernel",
+      "fit",
+      "support_vectors"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "How to split data into training and test sets?",
+    "expected_keywords": [
+      "train_test_split",
+      "test_size",
+      "random_state",
+      "stratify",
+      "split"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "What is the bias-variance tradeoff?",
+    "expected_keywords": [
+      "bias",
+      "variance",
+      "overfit",
+      "underfit",
+      "generalization"
+    ],
+    "source_filter": "sklearn",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to encode categorical features?",
+    "expected_keywords": [
+      "OneHotEncoder",
+      "LabelEncoder",
+      "categorical",
+      "encoding",
+      "ordinal"
+    ],
+    "source_filter": "sklearn",
+    "type": "factual"
+  },
+  {
+    "question": "How to create a retrieval chain in LangChain?",
+    "expected_keywords": [
+      "retrieval",
+      "chain",
+      "retriever",
+      "vector",
+      "document"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "What are embeddings in LangChain and how to use them?",
+    "expected_keywords": [
+      "embedding",
+      "vector",
+      "model",
+      "encode",
+      "similarity"
+    ],
+    "source_filter": "langchain",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to use a vector store in LangChain?",
+    "expected_keywords": [
+      "vector",
+      "store",
+      "FAISS",
+      "similarity",
+      "search"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "What is an agent in LangChain?",
+    "expected_keywords": [
+      "agent",
+      "tool",
+      "action",
+      "reasoning",
+      "LLM"
+    ],
+    "source_filter": "langchain",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to split documents for a RAG pipeline?",
+    "expected_keywords": [
+      "split",
+      "chunk",
+      "text",
+      "document",
+      "recursive"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "How to use tools with a LangChain agent?",
+    "expected_keywords": [
+      "tool",
+      "agent",
+      "function",
+      "call",
+      "bind"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "What is LangGraph and how does it relate to LangChain?",
+    "expected_keywords": [
+      "graph",
+      "state",
+      "node",
+      "agent",
+      "workflow"
+    ],
+    "source_filter": "langchain",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to load documents from a PDF in LangChain?",
+    "expected_keywords": [
+      "loader",
+      "PDF",
+      "document",
+      "page",
+      "text"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "How to create a conversational memory in LangChain?",
+    "expected_keywords": [
+      "memory",
+      "conversation",
+      "buffer",
+      "history",
+      "chat"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "How to use output parsers in LangChain?",
+    "expected_keywords": [
+      "parser",
+      "output",
+      "structured",
+      "format",
+      "pydantic"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "How to create a custom prompt template?",
+    "expected_keywords": [
+      "prompt",
+      "template",
+      "variable",
+      "format",
+      "ChatPromptTemplate"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "What is Retrieval-Augmented Generation (RAG)?",
+    "expected_keywords": [
+      "retrieval",
+      "augmented",
+      "generation",
+      "context",
+      "knowledge"
+    ],
+    "source_filter": "langchain",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to use callbacks for monitoring in LangChain?",
+    "expected_keywords": [
+      "callback",
+      "handler",
+      "trace",
+      "monitor",
+      "event"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "How to chain multiple LLM calls together?",
+    "expected_keywords": [
+      "chain",
+      "sequential",
+      "LCEL",
+      "pipe",
+      "invoke"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "How to create a multi-modal chain with images and text?",
+    "expected_keywords": [
+      "image",
+      "multimodal",
+      "vision",
+      "message",
+      "content"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  },
+  {
+    "question": "What is LangChain Expression Language (LCEL)?",
+    "expected_keywords": [
+      "LCEL",
+      "runnable",
+      "pipe",
+      "chain",
+      "expression"
+    ],
+    "source_filter": "langchain",
+    "type": "conceptual"
+  },
+  {
+    "question": "How to stream responses from an LLM in LangChain?",
+    "expected_keywords": [
+      "stream",
+      "token",
+      "callback",
+      "chunk",
+      "async"
+    ],
+    "source_filter": "langchain",
+    "type": "factual"
+  }
+]

@@ -1,9 +1,9 @@
+﻿# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -23,6 +23,7 @@ wheels/
 # Virtual environments
 venv/
 .venv/
+env/
 .env/
 
 # IDEs
@@ -31,7 +32,16 @@ venv/
 *.swp
 *.swo
 
-# Project-specific generated data and logs
+# Project specific — données volumineuses (non versionnées)
 rag_project/data/
 *.log
+
+# PDFs compilés
 *.pdf
+
+# Notebooks exécutés (outputs lourds — utiliser nbstripout)
+# Les notebooks propres (sans outputs) sont trackés dans notebooks/
+resultats_rag_stage*/
+
+# Archives
+*.zip

@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-08-27T15:21:36.680263",
+  "config": {
+    "chunk_size_tokens": 400,
+    "chunk_overlap_tokens": 30,
+    "min_chunk_tokens": 30,
+    "embedding_model": "intfloat/multilingual-e5-base",
+    "faiss_index_type": "FlatIP",
+    "embedding_batch_size": 64,
+    "embedding_query_prefix": "query: ",
+    "embedding_passage_prefix": "passage: ",
+    "retrieval_profile": "multilingual_hybrid_rerank",
+    "candidate_k": 20,
+    "final_k": 5,
+    "reranker": {
+      "enabled": true,
+      "model_name": "BAAI/bge-reranker-v2-m3",
+      "max_length": 512,
+      "unload_after_query": false
+    },
+    "search_method": "hybrid",
+    "alpha": 0.7
+  },
+  "config_source": "benchmark",
+  "elapsed_seconds": 289.4,
+  "total_chunks": 9791,
+  "embedding_shape": [
+    9791,
+    768
+  ],
+  "sources": {
+    "python": {
+      "chunks": 5649,
+      "documents": 503,
+      "total_tokens": 1961524
+    },
+    "sklearn": {
+      "chunks": 1112,
+      "documents": 93,
+      "total_tokens": 382042
+    },
+    "langchain": {
+      "chunks": 3030,
+      "documents": 273,
+      "total_tokens": 425234
+    }
+  },
+  "token_stats": {
+    "mean": 282.8,
+    "median": 349.0,
+    "min": 30,
+    "max": 1985,
+    "std": 131.7
+  },
+  "chunks_with_code": 5244,
+  "output_files": {
+    "faiss_index": "/kaggle/working/rag_final_data/processed/vectorstore/faiss_index.bin",
+    "chunks_metadata": "/kaggle/working/rag_final_data/processed/vectorstore/chunks_metadata.json",
+    "index_manifest": "/kaggle/working/rag_final_data/processed/vectorstore/index_manifest.json"
+  }
+}
