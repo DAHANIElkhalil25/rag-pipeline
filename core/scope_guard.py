@@ -134,20 +134,29 @@ def explicit_scope_refusal(
 # Filtre 2 — Post-reranking : pertinence insuffisante
 # ---------------------------------------------------------------------------
 
-def _top_score(contexts: List[Dict[str, Any]]) -> float | None:
-    """Extrait le score du passage top-1 après reranking.
+def _top_score(contexts: List[Dict[str, Any]]) -> tuple[float | None, str]:
+    """Extrait le score le plus fiable du passage top-1 et indique son type.
 
-    Priorité :
-      1. reranker_score  → logit BGE  (peut être négatif, seuil conseillé : 0.0)
-      2. retrieval_score → hybride normalisé [0-1] (seuil conseillé : 0.30)
+    Priorité (du plus fiable au moins fiable) :
+      1. reranker_score  → logit BGE absolu    (seuil conseillé : 0.0)
+      2. raw_cosine_score → cosinus FAISS brut  (seuil conseillé : 0.45)
+      3. retrieval_score → hybride normalisé    (NE PAS utiliser comme seuil absolu)
+
+    Retourne (score, type_score).
     """
     if not contexts:
-        return None
+        return None, "none"
     top = contexts[0]
-    score = top.get("reranker_score")
-    if score is None:
-        score = top.get("retrieval_score")
-    return float(score) if score is not None else None
+
+    if top.get("reranker_score") is not None:
+        return float(top["reranker_score"]), "reranker"
+
+    if top.get("raw_cosine_score") is not None:
+        return float(top["raw_cosine_score"]), "cosine"
+
+    # Fallback : score hybride normalisé (non fiable pour seuillage absolu)
+    score = top.get("retrieval_score")
+    return (float(score), "hybrid_normalized") if score is not None else (None, "none")
 
 
 def evaluate_scope(
@@ -157,8 +166,12 @@ def evaluate_scope(
 ) -> Dict[str, Any]:
     """Décision finale après la recherche + reranking.
 
-    Retourne un payload structuré avec les champs :
-      status, reason, message, confidence, allow_answer (compat.).
+    Seuils selon le type de score disponible :
+      - reranker (logit BGE)   : config["minimum_top_score"] (défaut 0.0)
+      - cosine brut FAISS      : config["minimum_cosine_score"] (défaut 0.45)
+      - hybride normalisé      : pas de seuil (non fiable en valeur absolue)
+
+    Retourne un payload structuré : status, reason, message, confidence, allow_answer.
     """
     # Garde désactivée → réponse libre
     if not config.get("enabled", True):
@@ -166,6 +179,7 @@ def evaluate_scope(
             "status": "answered",
             "reason": "guard_disabled",
             "confidence": None,
+            "score_type": None,
             "message": None,
             "allow_answer": True,
         }
@@ -181,23 +195,32 @@ def evaluate_scope(
             "status": "abstained",
             "reason": "no_retrieved_context",
             "confidence": 0.0,
+            "score_type": "none",
             "message": _MSG_ABSTAINED,
             "allow_answer": False,
         }
 
-    # Vérification du seuil de pertinence
-    confidence = _top_score(contexts)
-    min_score = config.get("minimum_top_score")
+    # Extraction du score le plus fiable
+    confidence, score_type = _top_score(contexts)
+
+    # Seuil adapté au type de score
+    threshold = None
+    if score_type == "reranker":
+        threshold = config.get("minimum_top_score", 0.0)
+    elif score_type == "cosine":
+        threshold = config.get("minimum_cosine_score", 0.45)
+    # hybrid_normalized : pas de seuil absolu fiable → on laisse passer
 
     if (
-        min_score is not None
+        threshold is not None
         and confidence is not None
-        and confidence < float(min_score)
+        and confidence < float(threshold)
     ):
         return {
             "status": "abstained",
             "reason": "retrieval_score_below_threshold",
             "confidence": confidence,
+            "score_type": score_type,
             "message": _MSG_ABSTAINED,
             "allow_answer": False,
         }
@@ -207,6 +230,8 @@ def evaluate_scope(
         "status": "answered",
         "reason": "sufficient_retrieved_context",
         "confidence": confidence,
+        "score_type": score_type,
         "message": None,
         "allow_answer": True,
     }
+

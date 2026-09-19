@@ -147,13 +147,18 @@ def test_ambiguous_general_question():
 # ---------------------------------------------------------------------------
 
 def test_in_scope_low_score_abstained():
-    """Question Python valide mais contexte non pertinent → abstention."""
-    q = "Comment utiliser le module asyncio pour des tâches parallèles ?"
-    # On simule un mauvais score de reranking
-    result = evaluate_scope(q, CONTEXT_BAD, CFG)
+    """Score BGE negatif (logit < 0.0) -> abstention.
+    Note : le seuil cosinus est desactive localement (modele anglais non discriminant
+    pour le francais). Seul le logit BGE (<0.0) declenche l'abstention.
+    """
+    q = "Comment utiliser le module asyncio pour des taches paralleles ?"
+    # Simule un mauvais logit BGE (reranker present mais negatif)
+    ctx_bge_bad = [{"chunk_text": "...", "reranker_score": -1.2,
+                    "retrieval_score": 0.15, "doc_title": "Doc", "doc_source": "python"}]
+    cfg_with_bge = dict(CFG, minimum_top_score=0.0)  # BGE seuil actif
+    result = evaluate_scope(q, ctx_bge_bad, cfg_with_bge)
     assert result["status"] == "abstained", (
-        f"Attendu 'abstained', obtenu '{result['status']}'. "
-        f"Score : {result.get('confidence')}"
+        f"Avec BGE logit=-1.2 et seuil=0.0, attendu 'abstained', obtenu '{result['status']}'."
     )
 
 def test_in_scope_good_score_answered():

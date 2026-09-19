@@ -62,72 +62,92 @@ def load_index() -> Tuple[faiss.Index, List[Dict[str, Any]]]:
 
 def load_search_config() -> Dict[str, Any]:
     """
-    Lit le rapport de benchmark pour déterminer la configuration optimale.
-    Récupère le modèle d'embedding, la méthode de recherche et le coefficient alpha.
-    
+    Lit la configuration de recherche depuis le manifeste d'index ou le benchmark.
+
+    Auto-détecte le modèle d'embedding à partir de la dimension réelle de l'index
+    FAISS afin d'éviter les incompatibilités de dimension entre environnements.
+
     Returns:
         Dict[str, Any]: Configuration incluant embedding_model, search_method et alpha.
     """
-    benchmark_path = BENCHMARK_DIR / "benchmark_report.json"
-    
+    # Modèles connus par dimension de sortie
+    _DIM_TO_MODEL = {
+        384: "all-MiniLM-L6-v2",
+        768: "intfloat/multilingual-e5-base",
+    }
+
     config = {
         "embedding_model": "all-MiniLM-L6-v2",
-        "search_method": "semantic",
+        "search_method": "hybrid",
         "alpha": 0.7,
         "embedding_query_prefix": "",
+        "embedding_passage_prefix": "",
         "candidate_k": LLM_CONFIG.get("top_k_retrieval", 5),
         "final_k": LLM_CONFIG.get("top_k_retrieval", 5),
         "reranker": {"enabled": False},
     }
+
+    # Détecter la dimension réelle de l'index FAISS
+    index_path = VECTORSTORE_DIR / "faiss_index.bin"
+    if index_path.exists():
+        try:
+            import faiss as _faiss
+            _idx = _faiss.read_index(str(index_path))
+            detected_model = _DIM_TO_MODEL.get(_idx.d)
+            if detected_model:
+                config["embedding_model"] = detected_model
+                logger.info(
+                    "Modele d'embedding auto-detecte depuis l'index FAISS "
+                    "(%dd) : %s", _idx.d, detected_model
+                )
+            else:
+                logger.warning(
+                    "Dimension FAISS inconnue (%dd). "
+                    "Verifier _DIM_TO_MODEL dans load_search_config().", _idx.d
+                )
+        except Exception as exc:
+            logger.warning("Impossible de lire la dimension FAISS : %s", exc)
 
     manifest_path = VECTORSTORE_DIR / "index_manifest.json"
     if manifest_path.exists():
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             index_config = manifest.get("index_config", {})
-            for key in ("embedding_model", "search_method", "alpha", "embedding_query_prefix", "candidate_k", "final_k", "reranker", "retrieval_profile"):
+            # Ne pas écraser embedding_model : il vient de la détection dimension
+            for key in ("search_method", "alpha", "embedding_query_prefix",
+                        "embedding_passage_prefix", "candidate_k", "final_k",
+                        "reranker", "retrieval_profile"):
                 if key in index_config:
                     config[key] = index_config[key]
-            logger.info(f"Configuration chargée depuis le manifeste index : {config}")
+            logger.info("Configuration supplementaire chargee depuis le manifeste.")
             return config
         except (json.JSONDecodeError, OSError) as exc:
-            logger.warning(f"Manifeste d'index invalide, repli benchmark : {exc}")
-    
+            logger.warning("Manifeste d'index invalide : %s", exc)
+
+    benchmark_path = BENCHMARK_DIR / "benchmark_report.json"
     if benchmark_path.exists():
         try:
             with open(benchmark_path, "r", encoding="utf-8") as f:
                 report = json.load(f)
-            
             recs = report.get("recommendations", {})
-            
-            # Modèle d'embedding
-            if "embedding_model" in recs:
-                config["embedding_model"] = recs["embedding_model"].get(
-                    "model", config["embedding_model"]
-                )
-            
-            # Méthode de recherche
             if "search_method" in recs:
                 method = recs["search_method"].get("method", "")
                 if "hybride" in method.lower() or "hybrid" in method.lower():
                     config["search_method"] = "hybrid"
-                    # Extraire alpha depuis le nom (ex: "Hybride α=0.7")
                     if "0.7" in method:
                         config["alpha"] = 0.7
-                    elif "0.5" in method:
-                        config["alpha"] = 0.5
                 elif "bm25" in method.lower():
                     config["search_method"] = "bm25"
                 else:
                     config["search_method"] = "semantic"
-            
-            logger.info(f"Configuration chargée depuis le benchmark : {config}")
+            logger.info("Configuration chargee depuis le benchmark.")
         except Exception as e:
-            logger.warning(f"Erreur lors de la lecture du rapport de benchmark : {e}")
+            logger.warning("Erreur lecture benchmark : %s", e)
     else:
-        logger.info("Aucun rapport de benchmark trouvé, utilisation de la configuration par défaut.")
-        
+        logger.info("Aucun manifeste ni benchmark. Configuration par defaut.")
+
     return config
+
 
 class LLMClient(ABC):
     """
@@ -462,10 +482,14 @@ class RAGPipeline:
                 if 0 <= idx < n:
                     sem_full[idx] = sc
 
+            # Score cosinus brut du top-1 (mesure absolue, non normalisée)
+            # Utilisé par le scope guard : non affecté par la normalisation min-max.
+            top1_raw_cosine = float(sem_scores_all[0][0]) if len(sem_scores_all[0]) > 0 else 0.0
+
             # Scores BM25 sur tout le corpus
             bm25_full = self.bm25.score(question)
 
-            # Normalisation min-max
+            # Normalisation min-max (uniquement pour le classement, pas pour le seuil)
             def _norm(arr):
                 mn, mx = arr.min(), arr.max()
                 return (arr - mn) / (mx - mn + 1e-10)
@@ -474,12 +498,14 @@ class RAGPipeline:
             ranked_indices = np.argsort(hybrid_scores)[::-1]
             top_k_idx = [idx for idx in ranked_indices if _matches_constraints(self.chunks[idx])][:candidate_k]
 
-            for idx in top_k_idx:
+            for rank, idx in enumerate(top_k_idx):
                 if 0 <= idx < n:
                     chunk = self.chunks[idx].copy()
                     chunk["retrieval_score"] = float(hybrid_scores[idx])
+                    # Score cosinus brut : uniquement sur le top-1 (le plus pertinent)
+                    chunk["raw_cosine_score"] = top1_raw_cosine if rank == 0 else None
                     results.append(chunk)
-                
+
         else:
             # Sémantique uniquement
             for idx, score in zip(sem_indices, sem_scores):
@@ -488,11 +514,13 @@ class RAGPipeline:
                     if not _matches_constraints(chunk):
                         continue
                     chunk["retrieval_score"] = float(score)
+                    chunk["raw_cosine_score"] = float(score)  # déjà un cosinus brut
                     results.append(chunk)
                     if len(results) >= candidate_k:
                         break
-                    
+
         return self._rerank(question, results, k)
+
 
     def get_prompt_contexts(self, contexts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Return the exact ranked text windows that will be inserted into the prompt."""

@@ -98,9 +98,16 @@ LLM_CONFIG = {
 # unsupported_libraries : mots-clés entiers détectés avant la recherche.
 SCOPE_GUARD_CONFIG = {
     "enabled": True,
-    # Seuil calibré sur logit BGE : 0.0 = 50 % de confiance (reranker activé).
-    # Mettre à None pour désactiver temporairement le filtre post-reranking.
-    "minimum_top_score": 0.0,
+    # Seuil 1 — logit BGE (reranker actif, ex: Kaggle avec multilingual-e5-base + BGE)
+    # Logit < 0.0 = probabilite de pertinence < 50 %.
+    # Mettre None si le reranker BGE n'est pas actif.
+    "minimum_top_score": None,
+    # Seuil 2 — cosinus brut FAISS (sans reranker)
+    # ATTENTION : uniquement fiable avec un modele multilingue (ex: multilingual-e5-base).
+    # Avec all-MiniLM-L6-v2 (modele anglais), les questions francaises hors domaine
+    # obtiennent des scores cosinus > 0.85, indiscernables des questions valides.
+    # => Desactive localement, actif sur Kaggle avec le bon modele.
+    "minimum_cosine_score": None,
     # Alias pointés -> bibliothèque non couverte (signal fort, peu de faux positifs)
     "unsupported_aliases": {
         "pd": "pandas",
