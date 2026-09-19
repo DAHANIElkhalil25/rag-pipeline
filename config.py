@@ -87,18 +87,41 @@ LLM_CONFIG = {
     "ollama_model": "mistral",
 }
 
-# Contrôle hors périmètre pour l'interface et l'étape 5.
-# La liste explicite traite les bibliothèques absentes du corpus (ex. pd.head()).
-# Le seuil est volontairement désactivé tant qu'il n'est pas calibré sur un jeu
-# séparé de questions dans/hors périmètre : les scores E5/BGE ne sont pas des
-# probabilités directement comparables entre toutes les questions.
+# Contrôle hors périmètre — double filtre pré-recherche et post-reranking.
+#
+# minimum_top_score : seuil sur le score BGE du passage top-1 après reranking.
+#   - Logit BGE  (reranker activé)  : seuil 0.0 → probabilité de pertinence >= 50 %.
+#   - Score hybride [0-1] (sans reranker) : seuil conseillé 0.30.
+#   - Mettre à None pour désactiver le filtre post-reranking.
+#
+# unsupported_aliases : préfixes pointés explicitement hors corpus (ex : pd.head).
+# unsupported_libraries : mots-clés entiers détectés avant la recherche.
 SCOPE_GUARD_CONFIG = {
     "enabled": True,
-    "minimum_top_score": None,
-    "unsupported_aliases": {"pd": "pandas"},
+    # Seuil calibré sur logit BGE : 0.0 = 50 % de confiance (reranker activé).
+    # Mettre à None pour désactiver temporairement le filtre post-reranking.
+    "minimum_top_score": 0.0,
+    # Alias pointés -> bibliothèque non couverte (signal fort, peu de faux positifs)
+    "unsupported_aliases": {
+        "pd": "pandas",
+        "np": "numpy",
+        "tf": "tensorflow",
+        "plt": "matplotlib",
+    },
+    # Mots-clés en mot entier -> bibliothèques explicitement hors corpus
     "unsupported_libraries": [
-        "pandas", "numpy", "django", "flask", "fastapi", "tensorflow",
-        "pytorch", "torch", "react", "angular", "vue", "node.js", "nodejs",
+        "pandas", "numpy", "matplotlib", "seaborn", "plotly",
+        "django", "flask", "fastapi", "celery",
+        "tensorflow", "keras", "pytorch", "torch",
+        "react", "angular", "vue", "svelte", "nodejs", "node.js",
+        "mongodb", "postgresql", "mysql", "redis", "elasticsearch",
+        "docker", "kubernetes",
+    ],
+    # Sujets dans le périmètre (utilisés pour debug uniquement)
+    "in_scope_topics": [
+        "python", "scikit-learn", "sklearn", "langchain", "langgraph",
+        "faiss", "bm25", "embedding", "reranking", "rag",
+        "transformers", "huggingface", "mistral",
     ],
 }
 

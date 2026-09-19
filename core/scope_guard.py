@@ -1,10 +1,32 @@
-"""Contrôle déterministe du périmètre avant génération RAG.
+"""Contrôle déterministe du périmètre avant et après la recherche RAG.
 
-Cette couche ne remplace pas la récupération : elle évite simplement d'appeler
-le LLM lorsqu'une bibliothèque explicitement hors corpus est détectée ou
-lorsqu'aucun passage n'a été retrouvé. Le seuil numérique reste optionnel afin
-de ne pas rejeter des questions françaises valides sur une documentation anglaise
-avant une calibration expérimentale dédiée.
+Architecture à double filtre :
+
+  Filtre 1 — Pré-recherche (explicit_scope_refusal)
+      Détecte les questions explicitement hors domaine AVANT d'appeler FAISS,
+      BM25 ou le reranker. Économise le GPU et le temps de calcul.
+      → statut : "refused"
+
+  Filtre 2 — Post-reranking (evaluate_scope)
+      Après la recherche hybride + BGE, vérifie que le meilleur passage a un
+      score suffisant pour justifier une génération.
+      Le score utilisé est `reranker_score` (logit BGE) si le reranking est
+      activé, sinon `retrieval_score` (score hybride normalisé [0-1]).
+      Un logit BGE < 0.0  ↔  probabilité de pertinence < 50 %.
+      Un score hybride < 0.30 ↔  peu de chevauchement sémantique ET lexical.
+      → statut : "abstained"
+
+  Résultat normal :
+      → statut : "answered"
+
+Structure du payload de retour
+-------------------------------
+{
+    "status"   : "answered" | "refused" | "abstained",
+    "reason"   : str,          # code interne (pour les logs)
+    "message"  : str | None,   # message à afficher à l'utilisateur
+    "confidence": float | None # score du top-1 passage (pour debug)
+}
 """
 
 from __future__ import annotations
@@ -13,45 +35,119 @@ import re
 from typing import Any, Dict, List, Mapping
 
 
-DEFAULT_REFUSAL_MESSAGE = (
-    "Je ne dispose pas d’une source suffisamment fiable dans mon corpus pour répondre à cette question. "
-    "Le corpus couvre Python, Scikit-learn et LangChain, mais pas ce sujet."
+# ---------------------------------------------------------------------------
+# Messages utilisateur
+# ---------------------------------------------------------------------------
+_MSG_REFUSED = (
+    "Cette question ne concerne pas les domaines couverts par cet assistant. "
+    "Le système traite principalement Python, Scikit-learn, LangChain et les "
+    "systèmes RAG (FAISS, BM25, embeddings, reranking)."
 )
 
+_MSG_ABSTAINED = (
+    "Je n'ai pas trouvé suffisamment d'informations pertinentes dans la "
+    "documentation disponible pour répondre de manière fiable à cette question."
+)
 
-def _normalise_question(question: str) -> str:
-    return re.sub(r"\s+", " ", question.casefold()).strip()
+# Message de refus avec mention de la bibliothèque détectée
+_MSG_REFUSED_LIBRARY = (
+    "Cette question porte sur {library}, qui n'est pas inclus dans le corpus "
+    "de cet assistant. Le système couvre Python, Scikit-learn, LangChain et "
+    "les systèmes RAG."
+)
+
+# Gardé pour compatibilité avec l'ancienne interface
+DEFAULT_REFUSAL_MESSAGE = _MSG_ABSTAINED
 
 
-def _detect_explicit_out_of_scope_topic(question: str, config: Mapping[str, Any]) -> str | None:
-    """Return the named unsupported topic explicitly present in the question."""
-    normalised = _normalise_question(question)
+# ---------------------------------------------------------------------------
+# Normalisation
+# ---------------------------------------------------------------------------
+def _normalise(text: str) -> str:
+    """Casse et espaces normalisés, pour la comparaison interne."""
+    return re.sub(r"\s+", " ", text.casefold()).strip()
+
+
+# ---------------------------------------------------------------------------
+# Filtre 1 — Pré-recherche : détection explicite hors périmètre
+# ---------------------------------------------------------------------------
+
+def _detect_out_of_scope(question: str, config: Mapping[str, Any]) -> str | None:
+    """Retourne le nom de la bibliothèque/sujet détecté si la question est
+    explicitement hors périmètre, sinon None.
+
+    Logique :
+      1. Alias pointés  :  pd.xxx, np.xxx, tf.xxx  → pandas, numpy, tensorflow
+         (usage API réel, fort signal hors périmètre)
+      2. Mots-clés entiers : pandas, django, flask …
+         (uniquement en mot entier pour éviter les faux positifs)
+
+    Limites connues :
+      - Ne détecte pas les contournements ("librairie de tableaux python").
+      - Ne détecte pas les questions de comparaison ("pandas vs polars").
+      Ces cas passeront au filtre 2 (score post-reranking).
+    """
+    normalised = _normalise(question)
+
+    # Alias pointés (ex : pd.head, np.array, tf.keras)
     for alias, library in config.get("unsupported_aliases", {}).items():
-        if re.search(rf"\b{re.escape(str(alias).casefold())}\s*\.", normalised):
+        pattern = rf"\b{re.escape(str(alias).casefold())}\s*\."
+        if re.search(pattern, normalised):
             return str(library)
 
+    # Mots-clés entiers
     for library in config.get("unsupported_libraries", []):
-        if re.search(rf"\b{re.escape(str(library).casefold())}\b", normalised):
+        pattern = rf"\b{re.escape(str(library).casefold())}\b"
+        if re.search(pattern, normalised):
             return str(library)
-    return ""
+
+    return None
 
 
-def explicit_scope_refusal(question: str, config: Mapping[str, Any]) -> Dict[str, Any] | None:
-    """Return a refusal before retrieval when a known unsupported library is named."""
-    unsupported_topic = _detect_explicit_out_of_scope_topic(question, config)
-    if not unsupported_topic:
+def explicit_scope_refusal(
+    question: str,
+    config: Mapping[str, Any],
+) -> Dict[str, Any] | None:
+    """Retourne un payload 'refused' si un sujet hors périmètre est détecté,
+    sinon None.  Appelé AVANT la recherche FAISS/BM25.
+    """
+    if not question or not question.strip():
+        # Question vide → laisser le filtre 2 gérer (pas de contexte)
         return None
+
+    topic = _detect_out_of_scope(question, config)
+    if topic is None:
+        return None
+
     return {
-        "allow_answer": False,
+        "status": "refused",
         "reason": "unsupported_library",
         "confidence": None,
-        "detected_topic": unsupported_topic,
-        "message": (
-            f"Je ne peux pas répondre de façon fiable à propos de {unsupported_topic}, "
-            "car cette bibliothèque n’est pas incluse dans le corpus actuel. "
-            "Le corpus couvre Python, Scikit-learn et LangChain."
-        ),
+        "detected_topic": topic,
+        "message": _MSG_REFUSED_LIBRARY.format(library=topic),
+        # Compatibilité ancienne interface
+        "allow_answer": False,
     }
+
+
+# ---------------------------------------------------------------------------
+# Filtre 2 — Post-reranking : pertinence insuffisante
+# ---------------------------------------------------------------------------
+
+def _top_score(contexts: List[Dict[str, Any]]) -> float | None:
+    """Extrait le score du passage top-1 après reranking.
+
+    Priorité :
+      1. reranker_score  → logit BGE  (peut être négatif, seuil conseillé : 0.0)
+      2. retrieval_score → hybride normalisé [0-1] (seuil conseillé : 0.30)
+    """
+    if not contexts:
+        return None
+    top = contexts[0]
+    score = top.get("reranker_score")
+    if score is None:
+        score = top.get("retrieval_score")
+    return float(score) if score is not None else None
 
 
 def evaluate_scope(
@@ -59,39 +155,58 @@ def evaluate_scope(
     contexts: List[Dict[str, Any]],
     config: Mapping[str, Any],
 ) -> Dict[str, Any]:
-    """Decide whether evidence is sufficient to call the answer generator.
+    """Décision finale après la recherche + reranking.
 
-    The return payload is deliberately structured for the notebook, the Gradio
-    UI, and later audit logs. It is deterministic and performs no model call.
+    Retourne un payload structuré avec les champs :
+      status, reason, message, confidence, allow_answer (compat.).
     """
+    # Garde désactivée → réponse libre
     if not config.get("enabled", True):
-        return {"allow_answer": True, "reason": "guard_disabled", "confidence": None}
+        return {
+            "status": "answered",
+            "reason": "guard_disabled",
+            "confidence": None,
+            "message": None,
+            "allow_answer": True,
+        }
 
-    explicit_refusal = explicit_scope_refusal(question, config)
-    if explicit_refusal:
-        return explicit_refusal
+    # Filtre 1 rejoué pour la cohérence (au cas où appelé directement)
+    explicit = explicit_scope_refusal(question, config)
+    if explicit:
+        return explicit
 
+    # Aucun contexte récupéré
     if not contexts:
         return {
-            "allow_answer": False,
+            "status": "abstained",
             "reason": "no_retrieved_context",
             "confidence": 0.0,
-            "message": DEFAULT_REFUSAL_MESSAGE,
-        }
-
-    top_context = contexts[0]
-    confidence = top_context.get("reranker_score", top_context.get("retrieval_score"))
-    minimum_score = config.get("minimum_top_score")
-    if minimum_score is not None and confidence is not None and float(confidence) < float(minimum_score):
-        return {
+            "message": _MSG_ABSTAINED,
             "allow_answer": False,
-            "reason": "retrieval_score_below_threshold",
-            "confidence": float(confidence),
-            "message": DEFAULT_REFUSAL_MESSAGE,
         }
 
+    # Vérification du seuil de pertinence
+    confidence = _top_score(contexts)
+    min_score = config.get("minimum_top_score")
+
+    if (
+        min_score is not None
+        and confidence is not None
+        and confidence < float(min_score)
+    ):
+        return {
+            "status": "abstained",
+            "reason": "retrieval_score_below_threshold",
+            "confidence": confidence,
+            "message": _MSG_ABSTAINED,
+            "allow_answer": False,
+        }
+
+    # Tout est bon → génération autorisée
     return {
-        "allow_answer": True,
+        "status": "answered",
         "reason": "sufficient_retrieved_context",
-        "confidence": float(confidence) if confidence is not None else None,
+        "confidence": confidence,
+        "message": None,
+        "allow_answer": True,
     }

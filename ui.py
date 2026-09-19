@@ -2,6 +2,11 @@
 
 Le pipeline et ses modèles sont injectés depuis le notebook afin d'éviter de
 charger une seconde fois le modèle Mistral sur le GPU Kaggle.
+
+Gestion des trois états de réponse :
+  - "answered"  : réponse normale avec sources.
+  - "refused"   : question hors périmètre (détectée avant la recherche).
+  - "abstained" : corpus insuffisant (détecté après reranking).
 """
 
 from __future__ import annotations
@@ -10,20 +15,35 @@ import html
 from typing import Any, Dict, List, Tuple
 
 
+# ---------------------------------------------------------------------------
+# Formatage des sources
+# ---------------------------------------------------------------------------
+
 def format_sources(result: Dict[str, Any]) -> str:
-    """Formate les sources récupérées en Markdown lisible."""
-    if result.get("status") == "hors_perimetre":
+    """Formate le panneau 'Sources' selon le statut du résultat."""
+    status = result.get("status", "answered")
+
+    if status == "refused":
+        return (
+            "### ⛔ Question hors périmètre\n\n"
+            "Le système n'a pas lancé de recherche pour cette question."
+        )
+
+    if status == "abstained":
         scope = result.get("scope_check", {})
         confidence = scope.get("confidence")
-        confidence_text = (
-            f"\n\nScore de récupération : `{float(confidence):.4f}`."
+        score_text = (
+            f"\n\nScore de pertinence du meilleur passage : `{float(confidence):.4f}` "
+            f"(seuil : `{0.0}`)."
             if confidence is not None else ""
         )
         return (
-            "### Statut : sujet hors périmètre ou source insuffisante\n\n"
-            "Aucune source n’est affichée, car le système n’a pas généré de réponse factuelle."
-            f"{confidence_text}"
+            "### ⚠️ Documentation insuffisante\n\n"
+            "Les passages récupérés n'étaient pas assez pertinents pour générer "
+            f"une réponse fiable.{score_text}"
         )
+
+    # Cas "answered" : affichage normal des sources
     sources = result.get("sources", [])
     scores = result.get("retrieval_scores", [])
     if not sources:
@@ -32,12 +52,16 @@ def format_sources(result: Dict[str, Any]) -> str:
     lines = ["### Sources récupérées", ""]
     for rank, source in enumerate(sources, start=1):
         title = html.escape(str(source.get("doc_title") or "Document sans titre"))
-        url = html.escape(str(source.get("doc_source") or "Source non spécifiée"))
+        domain = html.escape(str(source.get("doc_source") or "Source non spécifiée"))
         score = scores[rank - 1] if rank - 1 < len(scores) else None
         score_text = f" — score {float(score):.4f}" if score is not None else ""
-        lines.append(f"{rank}. **{title}**{score_text}<br>\n   `{url}`")
+        lines.append(f"{rank}. **{title}**{score_text}  \n   `{domain}`")
     return "\n".join(lines)
 
+
+# ---------------------------------------------------------------------------
+# Application Gradio
+# ---------------------------------------------------------------------------
 
 def create_gradio_app(pipeline: Any):
     """Construit l'application Gradio autour d'une instance RAG existante."""
@@ -46,27 +70,42 @@ def create_gradio_app(pipeline: Any):
     def answer_question(question: str) -> Tuple[str, str]:
         question = (question or "").strip()
         if not question:
-            return "Veuillez saisir une question technique.", ""
+            return (
+                "Veuillez saisir une question technique.",
+                "",
+            )
         try:
             result = pipeline.answer(question)
-            answer = result.get("answer", "Aucune réponse générée.")
-            return answer, format_sources(result)
+            status = result.get("status", "answered")
+            answer_text = result.get("answer", "Aucune réponse generee.")
+
+            # Préfixe visuel selon le statut
+            if status == "refused":
+                displayed_answer = f"⛔ {answer_text}"
+            elif status == "abstained":
+                displayed_answer = f"⚠️ {answer_text}"
+            else:
+                displayed_answer = answer_text
+
+            return displayed_answer, format_sources(result)
+
         except Exception as exc:
             return (
-                "Le système n'a pas pu traiter cette question. Consultez les logs "
-                "pour le diagnostic.",
-                f"Erreur contrôlée : `{type(exc).__name__}: {exc}`",
+                "Le systeme n'a pas pu traiter cette question. "
+                "Consultez les logs pour le diagnostic.",
+                f"Erreur : `{type(exc).__name__}: {exc}`",
             )
 
     with gr.Blocks(title="RAG — Documentation technique") as app:
         gr.Markdown(
             "# Assistant RAG — Documentation technique\n"
-            "Posez une question sur **Python**, **Scikit-learn** ou **LangChain**. "
-            "La réponse est générée uniquement à partir des passages récupérés."
+            "Posez une question sur **Python**, **Scikit-learn**, **LangChain** "
+            "ou les **systèmes RAG**. "
+            "La réponse est générée uniquement à partir de la documentation indexée."
         )
         question = gr.Textbox(
             label="Question",
-            placeholder="Ex. Quelle est la différence entre fit() et fit_transform() ?",
+            placeholder="Ex. Quelle est la difference entre fit() et fit_transform() ?",
             lines=3,
         )
         gr.Markdown("### Réponse")
@@ -79,11 +118,15 @@ def create_gradio_app(pipeline: Any):
         submit.click(answer_question, inputs=question, outputs=[answer, sources])
         question.submit(answer_question, inputs=question, outputs=[answer, sources])
         gr.Markdown(
-            "*Cette interface est une couche de démonstration. Les scores de "
-            "retrieval ne constituent pas une probabilité de vérité.*"
+            "*Cette interface est une couche de démonstration. "
+            "Les scores de retrieval ne constituent pas une probabilité de vérité.*"
         )
     return app
 
+
+# ---------------------------------------------------------------------------
+# Lancement
+# ---------------------------------------------------------------------------
 
 def launch_ui(
     pipeline: Any,
@@ -100,10 +143,10 @@ def launch_ui(
         show_error=True,
     )
 
+
 if __name__ == '__main__':
     from etape5_generation import load_pipeline
     print('Chargement du pipeline...')
     pipeline = load_pipeline()
     print('Lancement de interface Gradio...')
     launch_ui(pipeline, share=False)
-

@@ -510,12 +510,18 @@ class RAGPipeline:
 
     def build_prompt(self, question: str, contexts: List[Dict[str, Any]]) -> str:
         """
-        Construit le prompt pour le modèle de langage.
-        
+        Construit le prompt anti-hallucination pour le modèle de langage.
+
+        Règles strictes injectées dans le prompt :
+          - Répondre UNIQUEMENT à partir des passages fournis.
+          - Ne JAMAIS utiliser les connaissances générales du modèle.
+          - Signaler explicitement si le contexte est insuffisant.
+          - Citer les passages utilisés avec [S1], [S2], etc.
+
         Args:
             question (str): La question de l'utilisateur.
-            contexts (List[Dict[str, Any]]): Les passages récupérés.
-            
+            contexts (List[Dict[str, Any]]): Les passages récupérés et rerankés.
+
         Returns:
             str: Le prompt formaté.
         """
@@ -524,17 +530,20 @@ class RAGPipeline:
             context_str += f"\n[S{context['rank']}] Source: {context['source_label']}\n{context['text']}\n"
 
         prompt = (
-            "Tu es un assistant expert en documentation technique sur Python, Scikit-learn et LangChain. "
-            "Réponds uniquement à partir des passages fournis.\n"
-            "Règles :\n"
-            "1. Si les passages ne suffisent pas, réponds exactement : "
-            "Je ne sais pas d'après les documents fournis.\n"
-            "2. Cite les passages utilisés avec leurs identifiants [S1], [S2], etc.\n"
-            "3. N'invente ni API, ni paramètre, ni version absente des passages.\n"
-            "4. Rédige une réponse claire et concise dans la langue de la question.\n\n"
-            f"Passages extraits :{context_str}\n\n"
-            f"Question : {question}\n\n"
-            "Réponse :"
+            "Tu es un assistant spécialisé en documentation technique. "
+            "Tu réponds UNIQUEMENT à partir des passages fournis ci-dessous.\n\n"
+            "RÈGLES STRICTES — à respecter impérativement :\n"
+            "1. Utilise EXCLUSIVEMENT les informations des passages fournis. "
+            "N'utilise JAMAIS tes connaissances générales ou internes.\n"
+            "2. Si les passages fournis ne permettent pas de répondre à la question, "
+            "réponds mot pour mot : « Je ne sais pas d'après les documents fournis. »\n"
+            "3. Cite systématiquement les passages utilisés avec leurs identifiants "
+            "[S1], [S2], etc.\n"
+            "4. N'invente aucune API, aucun paramètre, aucune version absente des passages.\n"
+            "5. Rédige dans la langue de la question (français si la question est en français).\n\n"
+            f"PASSAGES FOURNIS :{context_str}\n"
+            f"QUESTION : {question}\n\n"
+            "RÉPONSE (uniquement à partir des passages ci-dessus) :"
         )
 
         return prompt
@@ -553,24 +562,39 @@ class RAGPipeline:
 
     def answer(self, question: str) -> Dict[str, Any]:
         """
-        Exécute le pipeline complet (Retrieval -> Prompt -> Generation).
-        
+        Exécute le pipeline complet avec double contrôle de périmètre.
+
+        Flux :
+          1. Filtre 1 (pré-recherche) : détection explicite hors périmètre.
+             → status "refused" si la question mentionne une bibliothèque hors corpus.
+          2. Recherche hybride FAISS/BM25 + reranking BGE.
+          3. Filtre 2 (post-reranking) : pertinence du top-1 passage.
+             → status "abstained" si le score BGE est insuffisant.
+          4. Génération Mistral/Ollama.
+             → status "answered" si tout est OK.
+
         Args:
             question (str): La question posée.
-            
+
         Returns:
-            Dict[str, Any]: Dictionnaire contenant question, réponse et sources.
+            Dict[str, Any]: Payload structuré avec status, answer, sources, scope_check.
         """
+        # --- Filtre 1 : pré-recherche ---
         scope_check = explicit_scope_refusal(question, self.scope_guard_config)
         contexts = []
         if scope_check is None:
+            # --- Recherche hybride FAISS/BM25 + reranking BGE ---
             k = int(self.search_config.get("final_k", LLM_CONFIG.get("top_k_retrieval", 5)))
             contexts = self.retrieve(question, k=k)
+            # --- Filtre 2 : post-reranking ---
             scope_check = evaluate_scope(question, contexts, self.scope_guard_config)
+
+        # Refus ou abstention → pas de génération
         if not scope_check["allow_answer"]:
+            status = scope_check.get("status", "hors_perimetre")
             logger.info(
-                "Réponse refusée avant génération | raison=%s | score=%s | question=%r",
-                scope_check["reason"], scope_check.get("confidence"), question,
+                "Génération bloquée | status=%s | raison=%s | score=%s | question=%r",
+                status, scope_check["reason"], scope_check.get("confidence"), question,
             )
             return {
                 "question": question,
@@ -578,17 +602,18 @@ class RAGPipeline:
                 "sources": [],
                 "retrieval_scores": [],
                 "retrieved_chunks": contexts,
-                "status": "hors_perimetre",
+                "status": status,
                 "scope_check": scope_check,
             }
-            
+
+        # --- Génération ---
         prompt = self.build_prompt(question, contexts)
         answer_text = self.generate(prompt)
         prompt_context_records = self.get_prompt_contexts(contexts)
-        
+
         sources = [{"doc_title": c.get("doc_title"), "doc_source": c.get("doc_source")} for c in contexts]
         scores = [c.get("retrieval_score", 0.0) for c in contexts]
-        
+
         return {
             "question": question,
             "answer": answer_text,
@@ -597,7 +622,7 @@ class RAGPipeline:
             "retrieved_chunks": contexts,
             "prompt_contexts": [record["text"] for record in prompt_context_records],
             "prompt_context_metadata": prompt_context_records,
-            "status": "reponse_sourcee",
+            "status": "answered",
             "scope_check": scope_check,
         }
 
