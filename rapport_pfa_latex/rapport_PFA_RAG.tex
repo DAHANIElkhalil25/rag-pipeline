@@ -836,6 +836,27 @@ possible l'annotation des passages de référence et permet de distinguer une
 mauvaise réponse causée par la génération d'une mauvaise réponse causée par la
 récupération.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{figures/fig_stats_corpus.png}
+\caption{Statistiques du corpus nettoyé : nombre de documents et volume en mots par source documentaire.}
+\label{fig:stats_corpus}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/fig_repartition_sections.png}
+\caption{Répartition des documents nettoyés par type de section et par source.}
+\label{fig:repartition_sections}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/fig_chunks_source.png}
+\caption{Répartition des 9 791 chunks indexés par source documentaire.}
+\label{fig:chunks_source}
+\end{figure}
+
 \section{Indexation et recherche hybride}
 
 Lors de l'indexation, les chunks sont transformés en vecteurs. Les préfixes E5
@@ -847,6 +868,13 @@ selon un coefficient $\alpha=0{,}7$, récupère vingt candidats et applique le
 reranker BGE. Les cinq premiers passages deviennent le contexte exact transmis
 au modèle. Ce contexte est sauvegardé pendant l'évaluation afin de rendre les
 scores auditables.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_benchmarking.png}
+\caption{Configuration optimale identifiée par grid search exhaustif sur 108 combinaisons : chunk\_size=400, overlap=30, hybride $\alpha=0.7$, MRR@5=0.926.}
+\label{fig:benchmarking}
+\end{figure}
 
 \begin{lstlisting}[caption={Principe simplifié de recherche hybride et reranking.},label={lst:retrieval}]
 # La question est encodee avec le prefixe E5 approprie.
@@ -878,6 +906,13 @@ du pipeline est réutilisée afin d'éviter le chargement multiple du modèle su
 GPU. Lorsque le pipeline détecte un sujet explicitement hors périmètre,
 l'interface affiche un statut clair au lieu de montrer des sources potentiellement
 trompeuses.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_gradio_reponse.png}
+\caption{Interface Gradio : réponse générée pour la question « C'est quoi Python ? » avec les cinq sources récupérées et leurs scores de similarité.}
+\label{fig:gradio_reponse}
+\end{figure}
 
 \begin{figure}[H]
 \centering
@@ -1067,6 +1102,13 @@ Factual\newline Correctness & \textbf{0,693} & 118/120 & L'exactitude par rappor
 \bottomrule
 \end{tabularx}
 \end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_scores_ragas.png}
+\caption{Scores moyens Ragas sur les 120 questions du jeu de test final. Les cinq premières barres correspondent aux métriques Ragas officielles, les deux dernières aux métriques déterministes par identifiants de chunks.}
+\label{fig:scores_ragas}
+\end{figure}
 
 Le système présente un bon niveau d'ancrage documentaire : Faithfulness et
 Answer Relevancy sont élevées. Cependant, Factual Correctness est sensiblement
@@ -1498,13 +1540,6 @@ Chaque question du jeu final suit une structure JSONL similaire à celle-ci :
 }
 \end{lstlisting}
 
-\chapter{Éléments à compléter avant dépôt officiel}
 
-Avant la soumission officielle, il est recommandé de vérifier les éléments
-suivants : les noms et fonctions exacts des encadrants sur la page de garde, la
-date de soutenance, le numéro éventuel du PFA, l'orthographe des membres du jury
-et les règles formelles spécifiques de l'INSEA. Les cinq lignes mal formées du
-jeu de test doivent aussi être corrigées avant de présenter les métriques à 120
-questions comme des valeurs définitivement gelées.
 
 \end{document}

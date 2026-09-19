@@ -99,3 +99,11 @@ def launch_ui(
         server_port=server_port,
         show_error=True,
     )
+
+if __name__ == '__main__':
+    from etape5_generation import load_pipeline
+    print('Chargement du pipeline...')
+    pipeline = load_pipeline()
+    print('Lancement de interface Gradio...')
+    launch_ui(pipeline, share=False)
+
